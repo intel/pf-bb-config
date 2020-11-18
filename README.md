@@ -27,6 +27,7 @@ the library, `libinih.a`.
 To compile the inih library, run make as:
 
     make -f Makefile.static
+    /bin/cp libinih.a ..
 
 ## Building  PF BBDEV Config App
 
