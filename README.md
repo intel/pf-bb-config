@@ -83,6 +83,16 @@ Test the VF is functional on the device using bbdev-test:
 
 Additional documentation can also be found on DPDK for bbdev usage and within Intel FlexRAN documentation.
 
+## Details for ACC100 configuration
+
+* The `pf_mode_en` parameter refers to the case whether the workload will be run from PF, or conversely from the VF (SRIOV).
+
+* There are 8 Qgroups available (made of up to 16 queues x 16 vfs each) which can be allocated to any available operation
+(UL4G/DL4G/UL5G/DL5G) based on parameter `num_qgroups`. For instance 4x of 5GUL and 4x for 5GDL when only 5G processing is required.
+The only limitation (which would be flagged by the configuration tool if exceeded) is for the total num of qgroups x num_aqs x aq_depth x vf_bundles to be less than 32k.
+
+* The default DDR size allocated per VF is 512MB. That value can be changed using `ACC100_HARQ_DDR`.
+
 ## Conversion to PDF
 
 To convert this readme to a PDF file, first install npm tool, followed by

@@ -200,11 +200,14 @@ static int
 acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 {
 	uint32_t payload, address, status;
-	int qg_idx, template_idx, vf_idx, acc, xl, i, j;
+	int qg_idx, template_idx, vf_idx, acc, xl, i;
 	/* QMGR_ARAM - memory internal to ACC100 */
 	uint32_t aram_address = 0;
 
 	uint8_t *bar0addr = mapaddr;
+
+	payload = acc100_reg_read(bar0addr, HwPfPcieGpexBridgeControl);
+	bool firstCfg = (payload != ACC100_CFG_PCI_BRIDGE);
 
 	/* PCIe Bridge configuration */
 	acc100_reg_write(bar0addr, HwPfPcieGpexBridgeControl,
@@ -213,27 +216,6 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		acc100_reg_write(bar0addr,
 				HwPfPcieGpexAxiAddrMappingWindowPexBaseHigh
 				+ i * 16, 0);
-
-	/* PCIe CDR Tuning */
-	for (i = 0; i < 4; i++)
-		for (j = 0; j < 4; j++)
-			acc100_reg_write(bar0addr, HwPfPcieLnCdrcfg2Ctrl0
-					+ i * PCIE_LANE_OFFSET
-					+ j * PCIE_QUAD_OFFSET, PCIE_CDR_CFG0);
-	for (i = 0; i < 4; i++)
-		for (j = 0; j < 4; j++)
-			acc100_reg_write(bar0addr, HwPfPcieLnCdrcfg2Ctrl1
-					+ i * PCIE_LANE_OFFSET
-					+ j * PCIE_QUAD_OFFSET, PCIE_CDR_CFG1);
-	for (i = 0; i < 4; i++)
-		for (j = 0; j < 4; j++)
-			acc100_reg_write(bar0addr, HwPfPcieLnCdrcfg2Ctrl2
-					+ i * PCIE_LANE_OFFSET
-					+ j * PCIE_QUAD_OFFSET, PCIE_CDR_CFG2);
-	for (j = 0; j < 4; j++)
-		acc100_reg_write(bar0addr, HwPfPcieSupPllbwtrim
-				+ j * PCIE_QUAD_OFFSET
-				, PCIE_CDR_CFG_BW);
 
 	/* Prevent blocking AXI read on BRESP for AXI Write */
 	address = HwPfPcieGpexAxiPioControl;
@@ -250,20 +232,14 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	payload = 1;
 	acc100_reg_write(bar0addr, address, payload);
 
-	/* DDR Configuration */
-	address = HWPfDdrBcTim6;
-	payload = acc100_reg_read(bar0addr, address);
-	payload &= 0xFFFFFFFB; /* Bit 2 */
-#ifdef ACC100_DDR_ECC_ENABLE
-	payload |= 0x4;
-#endif
+	/* Enable granular dynamic clock gating */
+	address = HWPfHiClkGateHystReg;
+	payload = ACC100_CLOCK_GATING_EN;
 	acc100_reg_write(bar0addr, address, payload);
-	address = HWPfDdrPhyDqsCountNum;
-#ifdef ACC100_DDR_ECC_ENABLE
-	payload = 9;
-#else
-	payload = 8;
-#endif
+
+	/* Set default descriptor signature */
+	address = HWPfDmaDescriptorSignatuture;
+	payload = 0;
 	acc100_reg_write(bar0addr, address, payload);
 
 	/* Enable the Error Detection in DMA */
@@ -686,7 +662,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 
 	/* HARQ DDR Configuration */
 
-	unsigned int ddrSizeInMb = 512; /* Fixed to 512 MB for now */
+	unsigned int ddrSizeInMb = ACC100_HARQ_DDR;
 	for (vf_idx = 0; vf_idx < acc100_conf->num_vf_bundles; vf_idx++) {
 		address = HWPfDmaVfDdrBaseRw + vf_idx
 				* 0x10;
@@ -694,6 +670,89 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 				(ddrSizeInMb - 1);
 		acc100_reg_write(bar0addr, address, payload);
 	}
+
+	uint32_t version = 0;
+	for (i = 0; i < 4; i++)
+		version += acc100_reg_read(bar0addr,
+				HWPfDdrPhyIdtmFwVersion + 4 * i) << (8 * i);
+	if (version != ACC100_PRQ_DDR_VER) {
+		printf("* Note: Not on DDR PRQ version %8x != %08x\n",
+				version, ACC100_PRQ_DDR_VER);
+	} else if (firstCfg) {
+		/* ---- DDR configuration at boot up --- */
+		/* Read Clear Ddr training status */
+		acc100_reg_read(bar0addr, HWPfChaDdrStDoneStatus);
+		/* Reset PHY/IDTM/UMMC */
+		acc100_reg_write(bar0addr, HWPfChaDdrWbRstCfg, 3);
+		acc100_reg_write(bar0addr, HWPfChaDdrApbRstCfg, 2);
+		acc100_reg_write(bar0addr, HWPfChaDdrPhyRstCfg, 2);
+		acc100_reg_write(bar0addr, HWPfChaDdrCpuRstCfg, 3);
+		acc100_reg_write(bar0addr, HWPfChaDdrSifRstCfg, 2);
+		usleep(ACC100_MS_IN_US);
+		/* Reset WB and APB resets */
+		acc100_reg_write(bar0addr, HWPfChaDdrWbRstCfg, 2);
+		acc100_reg_write(bar0addr, HWPfChaDdrApbRstCfg, 3);
+		/* Configure PHY-IDTM */
+		acc100_reg_write(bar0addr, HWPfDdrPhyIdletimeout, 0x3e8);
+		/* IDTM timing registers */
+		acc100_reg_write(bar0addr, HWPfDdrPhyRdLatency, 0x13);
+		acc100_reg_write(bar0addr, HWPfDdrPhyRdLatencyDbi, 0x15);
+		acc100_reg_write(bar0addr, HWPfDdrPhyWrLatency, 0x10011);
+		/* Configure SDRAM MRS registers */
+		acc100_reg_write(bar0addr, HWPfDdrPhyMr01Dimm, 0x3030b70);
+		acc100_reg_write(bar0addr, HWPfDdrPhyMr01DimmDbi, 0x3030b50);
+		acc100_reg_write(bar0addr, HWPfDdrPhyMr23Dimm, 0x30);
+		acc100_reg_write(bar0addr, HWPfDdrPhyMr67Dimm, 0xc00);
+		acc100_reg_write(bar0addr, HWPfDdrPhyMr45Dimm, 0x4000000);
+		/* Configure active lanes */
+		acc100_reg_write(bar0addr, HWPfDdrPhyDqsCountMax, 0x9);
+		acc100_reg_write(bar0addr, HWPfDdrPhyDqsCountNum, 0x9);
+		/* Configure WR/RD leveling timing registers */
+		acc100_reg_write(bar0addr, HWPfDdrPhyWrlvlWwRdlvlRr, 0x101212);
+		/* Configure what trainings to execute */
+		acc100_reg_write(bar0addr, HWPfDdrPhyTrngType, 0x2d3c);
+		/* Releasing PHY reset */
+		acc100_reg_write(bar0addr, HWPfChaDdrPhyRstCfg, 3);
+		/* Configure Memory Controller registers */
+		acc100_reg_write(bar0addr, HWPfDdrMemInitPhyTrng0, 0x3);
+		acc100_reg_write(bar0addr, HWPfDdrBcDram, 0x3c232003);
+		acc100_reg_write(bar0addr, HWPfDdrBcAddrMap, 0x31);
+		/* Configure UMMC BC timing registers */
+		acc100_reg_write(bar0addr, HWPfDdrBcRef, 0xa22);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim0, 0x4050501);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim1, 0xf0b0476);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim2, 0x103);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim3, 0x144050a1);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim4, 0x23300);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim5, 0x4230276);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim6, 0x857914);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim7, 0x79100232);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim8, 0x100007ce);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim9, 0x50020);
+		acc100_reg_write(bar0addr, HWPfDdrBcTim10, 0x40ee);
+		/* Configure UMMC DFI timing registers */
+		acc100_reg_write(bar0addr, HWPfDdrDfiInit, 0x5000);
+		acc100_reg_write(bar0addr, HWPfDdrDfiTim0, 0x15030006);
+		acc100_reg_write(bar0addr, HWPfDdrDfiTim1, 0x11305);
+		acc100_reg_write(bar0addr, HWPfDdrDfiPhyUpdEn, 0x1);
+		acc100_reg_write(bar0addr, HWPfDdrUmmcIntEn, 0x1f);
+		/* Release IDTM CPU out of reset */
+		acc100_reg_write(bar0addr, HWPfChaDdrCpuRstCfg, 0x2);
+		/* Wait PHY-IDTM to finish static training */
+		for (i = 0; i < ACC100_DDR_TRAINING_MAX; i++) {
+			usleep(ACC100_MS_IN_US);
+			payload = acc100_reg_read(bar0addr,
+					HWPfChaDdrStDoneStatus);
+			if (payload & 1)
+				break;
+		}
+		printf("DDR Training completed in %d ms", i);
+		/* Enable Memory Controller */
+		acc100_reg_write(bar0addr, HWPfDdrUmmcCtrl, 0x401);
+		/* Release AXI interface reset */
+		acc100_reg_write(bar0addr, HWPfChaDdrSifRstCfg, 3);
+	}
+
 	printf("PF ACC100 configuration complete\n");
 	return 0;
 }

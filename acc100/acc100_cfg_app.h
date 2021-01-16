@@ -27,7 +27,7 @@
 #define ACC100_DDR_ECC_ENABLE
 
 #define BYTES_IN_WORD 4
-#define WORDS_IN_ARAM_SIZE (256 * 1024 / 4)
+#define WORDS_IN_ARAM_SIZE (128 * 1024 / 4)
 
 #define ACC100_NUM_QGRPS 8
 #define ACC100_NUM_TMPL  32
@@ -56,12 +56,16 @@
 #define ACC100_CFG_QMGR_HI_P 0x0F0F
 #define ACC100_CFG_PCI_AXI 0xC003
 #define ACC100_CFG_PCI_BRIDGE 0x40006033
-#define PCIE_CDR_CFG0 0x784
-#define PCIE_CDR_CFG1 0xAD4
-#define PCIE_CDR_CFG2 0x32C
-#define PCIE_CDR_CFG_BW 0x24
 #define PCIE_LANE_OFFSET 0x200
 #define PCIE_QUAD_OFFSET 0x2000
+#define ACC100_CLOCK_GATING_EN  0x30000
+/* DDR Size per VF - 512MB by default
+ * Can be increased up to 4 GB with single PF/VF
+ */
+#define ACC100_HARQ_DDR         (512 * 1)
+#define ACC100_PRQ_DDR_VER       0x10092020
+#define ACC100_MS_IN_US         (1000)
+#define ACC100_DDR_TRAINING_MAX (5000)
 
 /**
  * Definition of Queue Topology for ACC100 Configuration
