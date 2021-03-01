@@ -56,8 +56,9 @@
 #define ACC100_CFG_QMGR_HI_P 0x0F0F
 #define ACC100_CFG_PCI_AXI 0xC003
 #define ACC100_CFG_PCI_BRIDGE 0x40006033
-#define PCIE_LANE_OFFSET 0x200
-#define PCIE_QUAD_OFFSET 0x2000
+#define ACC100_QUAD_NUMS 4
+#define ACC100_PCIE_QUAD_OFFSET 0x2000
+#define ACC100_PCS_EQ 0x6007
 #define ACC100_CLOCK_GATING_EN  0x30000
 /* DDR Size per VF - 512MB by default
  * Can be increased up to 4 GB with single PF/VF

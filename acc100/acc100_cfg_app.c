@@ -252,6 +252,11 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	address = HWPfDmaAxcacheReg;
 	acc100_reg_write(bar0addr, address, payload);
 
+	/* Enable PCIe live adaptation */
+	for (i = 0; i < ACC100_QUAD_NUMS; i++)
+		acc100_reg_write(bar0addr, HwPfPciePcsEqControl +
+				i * ACC100_PCIE_QUAD_OFFSET, ACC100_PCS_EQ);
+
 	/* Default DMA Configuration (Qmgr Enabled) */
 	address = HWPfDmaConfig0Reg;
 	payload = 0;
