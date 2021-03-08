@@ -73,9 +73,9 @@ Bind both VFs using either igb_uio (make sure IOMMU/VT-d is disabled) or using v
 
     $dpdkPath/usertools/dpdk-devbind.py –bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
 
-Configure the Devices using pf_bb_config app for VF usage with 5G enabled:
+Configure the Devices using pf_bb_config app for VF usage with both 5G and 4G enabled:
 
-    ./pf_bb_config ACC100 -c acc100/acc100_config_vf_5g.cfg
+    ./pf_bb_config ACC100 -c acc100/acc100_config_vf.cfg
 
 Test the VF is functional on the device using bbdev-test:
 
@@ -85,13 +85,28 @@ Additional documentation can also be found on DPDK for bbdev usage and within In
 
 ## Details for ACC100 configuration
 
+* A number of configuration files examples are available in the acc100 directory. These includes the parameters below which can be modified for a specific usecase.
+
 * The `pf_mode_en` parameter refers to the case whether the workload will be run from PF, or conversely from the VF (SRIOV).
 
 * There are 8 Qgroups available (made of up to 16 queues x 16 vfs each) which can be allocated to any available operation
 (UL4G/DL4G/UL5G/DL5G) based on parameter `num_qgroups`. For instance 4x of 5GUL and 4x for 5GDL when only 5G processing is required.
+In that case they cover 4 distinct incremental priority levels.
 The only limitation (which would be flagged by the configuration tool if exceeded) is for the total num of qgroups x num_aqs x aq_depth x vf_bundles to be less than 32k.
 
-* The default DDR size allocated per VF is 512MB. That value can be changed using `ACC100_HARQ_DDR`.
+* The default DDR size allocated per VF depends on `num_vf_bundles` set (1 to 16). Assuming 4GB populated on the board, which is then split between VFs.
+
+* The `num_aqs_per_groups` defines the number of atomic queues within a VF bundle for a given Qgroup. The range is 1 to 16, 16 being default value. Said otherwise there can be up a maximum of up to 16 * 8 * 16 = 2048 total queues.
+
+## Details for N3000 configuration
+
+* A number of configuration files examples are available in the fpga_5gnr and fpga_lte directories. These includes the parameters below which can be modified for a specific usecase.
+
+* The `pf_mode_en` parameter refers to the case whether the workload will be run from PF, or conversely from the VF (SRIOV).
+
+* The list `vfqmap` defines how many queues are mapped for each VF. The absolute total being 32 for either UL or DL. As example 16, 16, 0, 0... means that 2 VFs would be supported with 16 queues each. All queues have the same priority level. This parameter is set independently for the actual number of VFs exposed through SRIOV PCIe config capability through sysfs.
+
+* The parameters `bandwidth` and `load_balance` are optional parameters impacting arbitration but are expected to be kept as default.
 
 ## Conversion to PDF
 
