@@ -252,6 +252,7 @@ enum {
 	HWPfPermonBTotalLatLowBusMon          =  0x00BAC504,
 	HWPfPermonBTotalLatUpperBusMon        =  0x00BAC508,
 	HWPfPermonBTotalReqCntBusMon          =  0x00BAC50C,
+	HWPfFabricMode                        =  0x00BB1000,
 	HWPfFecUl5gCntrlReg                   =  0x00BC0000,
 	HWPfFecUl5gI2MThreshReg               =  0x00BC0004,
 	HWPfFecUl5gVersionReg                 =  0x00BC0100,

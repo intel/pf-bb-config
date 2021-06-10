@@ -275,6 +275,11 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	payload = HWPfQmgrEgressQueuesTemplate;
 	acc100_reg_write(bar0addr, address, payload);
 
+	/* Default Fabric Mode */
+	address = HWPfFabricMode;
+	payload = ACC100_FABRIC_MODE;
+	acc100_reg_write(bar0addr, address, payload);
+
 	/* ===== Qmgr Configuration ===== */
 	/* Configuration of the AQueue Depth QMGR_GRP_0_DEPTH_LOG2 for UL */
 	int totalQgs = acc100_conf->q_ul_4g.num_qgroups +
@@ -428,13 +433,14 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		}
 	}
 
-	/* This pointer to ARAM (256kB) is shifted by 2 (4B per register) */
+	/* This pointer to ARAM (128kB) is shifted by 2 (4B per register) */
 	for (qg_idx = 0; qg_idx < totalQgs; qg_idx++) {
 		for (vf_idx = 0; vf_idx < acc100_conf->num_vf_bundles;
 				vf_idx++) {
 			address = HWPfQmgrVfBaseAddr + vf_idx
 					* BYTES_IN_WORD + qg_idx
-					* BYTES_IN_WORD * ACC100_NUM_VFS;
+					* BYTES_IN_WORD
+					* ACC100_QMGR_BA_STRIDE;
 			payload = aram_address;
 			acc100_reg_write(bar0addr, address, payload);
 			/* Offset ARAM Address for next memory bank
@@ -446,7 +452,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	}
 
 	if (aram_address > (WORDS_IN_ARAM_SIZE)) {
-		printf("ARAM Configuration not fitting into 256kB\n");
+		printf("ARAM Configuration not fitting into 128kB\n");
 		return -EINVAL;
 	}
 
@@ -666,8 +672,15 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	}
 
 	/* HARQ DDR Configuration */
-
-	unsigned int ddrSizeInMb = ACC100_HARQ_DDR;
+	unsigned int ddrSizeInMb;
+	if (acc100_conf->num_vf_bundles == 1)
+		ddrSizeInMb = ACC100_HARQ_TOTAL_DDR;
+	else if (acc100_conf->num_vf_bundles == 2)
+		ddrSizeInMb = ACC100_HARQ_TOTAL_DDR >> 1;
+	else if (acc100_conf->num_vf_bundles <= 4)
+		ddrSizeInMb = ACC100_HARQ_TOTAL_DDR >> 2;
+	else
+		ddrSizeInMb = ACC100_HARQ_TOTAL_DDR >> 4;
 	for (vf_idx = 0; vf_idx < acc100_conf->num_vf_bundles; vf_idx++) {
 		address = HWPfDmaVfDdrBaseRw + vf_idx
 				* 0x10;

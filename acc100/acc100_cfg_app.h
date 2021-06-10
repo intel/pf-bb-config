@@ -19,8 +19,6 @@
 #ifndef _ACC100_CFG_APP_H_
 #define _ACC100_CFG_APP_H_
 
-#include "acc100_pf_enum.h"
-
 #define ACC100_CONFIG_FILE_ENV "ACC100_CONFIG_FILE"
 #define ACC100_CONFIG_FILE_NAME "acc100_config.cfg"
 
@@ -46,7 +44,8 @@
 #define SIG_DL_4G      27
 #define SIG_DL_4G_LAST 31
 
-#define ACC100_NUM_VFS 16  /**< Number of Virtual Functions ACC100 supports */
+#define ACC100_NUM_VFS 16 /**< Number of Virtual Functions ACC100 supports */
+#define ACC100_QMGR_BA_STRIDE 64  /**< Base address stride for Qmgr */
 
 /* ACC100 Configuration */
 #define ACC100_CFG_DDR_ECC_EN 0x842304
@@ -60,13 +59,12 @@
 #define ACC100_PCIE_QUAD_OFFSET 0x2000
 #define ACC100_PCS_EQ 0x6007
 #define ACC100_CLOCK_GATING_EN  0x30000
-/* DDR Size per VF - 512MB by default
- * Can be increased up to 4 GB with single PF/VF
- */
-#define ACC100_HARQ_DDR         (512 * 1)
+/* DDR Size to be split across VFs */
+#define ACC100_HARQ_TOTAL_DDR   (4096)
 #define ACC100_PRQ_DDR_VER       0x10092020
 #define ACC100_MS_IN_US         (1000)
 #define ACC100_DDR_TRAINING_MAX (5000)
+#define ACC100_FABRIC_MODE      0xB
 
 /**
  * Definition of Queue Topology for ACC100 Configuration
