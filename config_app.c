@@ -382,20 +382,24 @@ main(int argc, char *argv[])
 			return -1;
 	}
 
+	ret = 0;
 	if (device.config_all) {
 		for (i = 0; i < num_devices; i++) {
 			strncpy(device.pci_address, found_devices[i],
 					sizeof(device.pci_address) - NULL_PAD);
-			configure_device(&device);
+			ret = configure_device(&device);
+			if (ret != 0) {
+				break;
+			}
 		}
 	} else {
 		select_device(&device, found_devices, num_devices);
-		configure_device(&device);
+		ret = configure_device(&device);
 	}
 
 	/* Free memory for stored PCI slots */
 	for (i = 0; i < num_devices; i++)
 		free(found_devices[i]);
 
-	return 0;
+	return ret;
 }
