@@ -873,6 +873,7 @@ enum {
 	HwPfPcieSupFence                      =  0x00D8086C,
 	HwPfPcieSupMtcs                       =  0x00D80870,
 	HwPfPcieSupStatsum                    =  0x00D809B8,
+	HwPfPcieRomVersion                    =  0x00D80B0C,
 	HwPfPciePcsDpStatus0                  =  0x00D81000,
 	HwPfPciePcsDpControl0                 =  0x00D81004,
 	HwPfPciePcsPmaStatusLane0             =  0x00D81008,

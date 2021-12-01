@@ -176,7 +176,7 @@ set_default_config(struct acc100_conf *acc100_conf)
 	}
 }
 
-/* Handler file for .ini parser */
+/* Handler function for .ini parser (returns 1 for success) */
 static int
 acc100_handler(void *user, const char *section,
 	    const char *name, const char *value)
@@ -304,14 +304,67 @@ acc100_handler(void *user, const char *section,
 	} else {
 		printf("ERROR: section (%s) or name (%s) is not valid\n",
 			section, name);
-		return 0;
+		ret = 0;
 	}
 
 	if (ret != 1)
 		printf("ERROR: Conversion of value (%s) failed\n", value);
 
-
 	return ret;
+}
+
+/* Enforce range check for a given queue configuration */
+int
+acc100_queue_range_check(struct q_topology_t q_conf)
+{
+	if ((q_conf.num_aqs_per_groups < 1) ||
+			(q_conf.num_aqs_per_groups > ACC100_NUM_AQS)) {
+		printf("ERROR: Number of AQs out of range %d\n",
+				q_conf.num_aqs_per_groups);
+		return -1;
+	}
+	if ((q_conf.aq_depth_log2 < 1) ||
+			(q_conf.aq_depth_log2 > ACC100_MAX_QDEPTH)) {
+		printf("ERROR: AQ Depth out of range %d\n",
+				q_conf.aq_depth_log2);
+		return -1;
+	}
+	if (q_conf.num_qgroups > ACC100_NUM_QGRPS) {
+		printf("ERROR: Number of QG out of range %d\n",
+				q_conf.num_qgroups);
+		return -1;
+	}
+	return 0;
+}
+
+/* Enforce range check for a given device configuration */
+int
+acc100_range_check(struct acc100_conf *acc100_conf)
+{
+	uint16_t totalQgs = acc100_conf->q_ul_4g.num_qgroups +
+			acc100_conf->q_ul_5g.num_qgroups +
+			acc100_conf->q_dl_4g.num_qgroups +
+			acc100_conf->q_dl_5g.num_qgroups;
+	if (totalQgs > ACC100_NUM_QGRPS) {
+		printf("ERROR: Number of Qgroups %d > %d\n",
+				totalQgs, ACC100_NUM_QGRPS);
+		return -1;
+	}
+	if (acc100_conf->num_vf_bundles > ACC100_NUM_VFS) {
+		printf("ERROR: Number of VFs bundle %d > %d\n",
+				acc100_conf->num_vf_bundles, ACC100_NUM_VFS);
+		return -1;
+	}
+
+	if (acc100_queue_range_check(acc100_conf->q_ul_4g) != 0)
+		return -1;
+	if (acc100_queue_range_check(acc100_conf->q_dl_4g) != 0)
+		return -1;
+	if (acc100_queue_range_check(acc100_conf->q_ul_5g) != 0)
+		return -1;
+	if (acc100_queue_range_check(acc100_conf->q_dl_5g) != 0)
+		return -1;
+	return 0;
 }
 
 int
@@ -323,15 +376,17 @@ acc100_parse_conf_file(const char *file_name, struct acc100_conf *acc100_conf)
 
 	ret = ini_parse(file_name, acc100_handler, acc100_conf);
 
-	if (ret == -1) {
-		printf("ERROR: Error loading configuration file %s\n",
-			file_name);
+	if (ret != 0) {
+		printf("ERROR: Config file parser error\n");
 		set_default_config(acc100_conf);
-		return -ENOENT;
-	} else if (ret == -2) {
-		printf("ERROR: Memory allocation error\n");
+		return -1;
+	}
+
+	ret = acc100_range_check(acc100_conf);
+	if (ret != 0) {
+		printf("ERROR: Parameter out of range\n");
 		set_default_config(acc100_conf);
-		return -ENOMEM;
+		return -1;
 	}
 
 	return 0;

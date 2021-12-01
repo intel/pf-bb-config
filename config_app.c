@@ -354,6 +354,7 @@ main(int argc, char *argv[])
 	int i, ret, num_devices;
 	hw_device device;
 	char *found_devices[10];
+	printf("== pf_bb_config Version #VERSION_STRING# ==\n");
 
 	memset(&device, 0, sizeof(device));
 
@@ -386,16 +387,16 @@ main(int argc, char *argv[])
 		for (i = 0; i < num_devices; i++) {
 			strncpy(device.pci_address, found_devices[i],
 					sizeof(device.pci_address) - NULL_PAD);
-			configure_device(&device);
+			ret = configure_device(&device);
 		}
 	} else {
 		select_device(&device, found_devices, num_devices);
-		configure_device(&device);
+		ret = configure_device(&device);
 	}
 
 	/* Free memory for stored PCI slots */
 	for (i = 0; i < num_devices; i++)
 		free(found_devices[i]);
 
-	return 0;
+	return ret;
 }

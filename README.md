@@ -69,7 +69,7 @@ Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is disabled.
 
 Bind the PF with the igb_uio module (or alternatively with pci-pf-stub):
 
-    $dpdkPath/usertools/dpdk-devbind.py –bind=igb_uio $pfPciDeviceAddr
+    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $pfPciDeviceAddr
 
 Create 2 VFs from the PF using the exposed sysfs interface:
 
@@ -78,7 +78,7 @@ Create 2 VFs from the PF using the exposed sysfs interface:
 Bind both VFs using either the igb_uio module (make sure that Intel® VT-d is
 disabled) or using the vfio-pci module (make sure that Intel® VT-d is enabled):
 
-    $dpdkPath/usertools/dpdk-devbind.py –bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
+    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
 
 Configure the devices using the pf_bb_config application for VF usage with both
 5G and 4G enabled:

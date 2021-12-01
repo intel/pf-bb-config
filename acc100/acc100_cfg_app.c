@@ -208,6 +208,10 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 
 	payload = acc100_reg_read(bar0addr, HwPfPcieGpexBridgeControl);
 	bool firstCfg = (payload != ACC100_CFG_PCI_BRIDGE);
+	if (payload == 0xFFFFFFFF) {
+		printf("MMIO is not accessible causing UR error over PCIe\n");
+		return 1;
+	}
 
 	/* PCIe Bridge configuration */
 	acc100_reg_write(bar0addr, HwPfPcieGpexBridgeControl,
@@ -220,6 +224,11 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	/* Prevent blocking AXI read on BRESP for AXI Write */
 	address = HwPfPcieGpexAxiPioControl;
 	payload = ACC100_CFG_PCI_AXI;
+	acc100_reg_write(bar0addr, address, payload);
+
+	/* Clear Error Register */
+	address = HWPfHiIosf2axiErrLogReg;
+	payload = 0xFFFFFFFF;
 	acc100_reg_write(bar0addr, address, payload);
 
 	/* 5GDL PLL phase shift */
@@ -458,9 +467,12 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 
 	/* ==== HI Configuration ==== */
 
-	/* No Info Ring setup */
+	/* No Info Ring/MSI by default */
 	address = HWPfHiInfoRingIntWrEnRegPf;
 	payload = 0;
+	acc100_reg_write(bar0addr, address, payload);
+	address = HWPfHiCfgMsiIntWrEnRegPf;
+	payload = 0xFFFFFFFF;
 	acc100_reg_write(bar0addr, address, payload);
 	/* Prevent Block on Transmit Error */
 	address = HWPfHiBlockTransmitOnErrorEn;
@@ -469,10 +481,6 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	/* Prevents to drop MSI */
 	address = HWPfHiMsiDropEnableReg;
 	payload = 0;
-	acc100_reg_write(bar0addr, address, payload);
-	/* Enable Error Detection in HW */
-	address = HWPfDmaErrorDetectionEn;
-	payload = 0x3D7;
 	acc100_reg_write(bar0addr, address, payload);
 
 	/* Set the PF Mode register */
@@ -689,6 +697,15 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		acc100_reg_write(bar0addr, address, payload);
 	}
 
+	/* Report SKU version of the device */
+	payload = acc100_reg_read(bar0addr, HwPfPcieRomVersion);
+	if (payload == ACC100_ROM_VER_SKU_A)
+		printf(" ROM version MM 99AD92\n");
+	else if (payload == ACC100_ROM_VER_SKU_B)
+		printf(" ROM version MM 99ANA5\n");
+	else
+		printf(" ROM version -undefined-\n");
+
 	uint32_t version = 0;
 	for (i = 0; i < 4; i++)
 		version += acc100_reg_read(bar0addr,
@@ -733,6 +750,8 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		acc100_reg_write(bar0addr, HWPfChaDdrPhyRstCfg, 3);
 		/* Configure Memory Controller registers */
 		acc100_reg_write(bar0addr, HWPfDdrMemInitPhyTrng0, 0x3);
+		/* Adjust default ROW address to end of 4GB area range */
+		acc100_reg_write(bar0addr, HWPfDdrPhyDramRow, 0xffff);
 		acc100_reg_write(bar0addr, HWPfDdrBcDram, 0x3c232003);
 		acc100_reg_write(bar0addr, HWPfDdrBcAddrMap, 0x31);
 		/* Configure UMMC BC timing registers */

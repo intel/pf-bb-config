@@ -29,6 +29,8 @@
 
 #define ACC100_NUM_QGRPS 8
 #define ACC100_NUM_TMPL  32
+#define ACC100_NUM_AQS    16
+#define ACC100_MAX_QDEPTH 12
 #define VF_OFFSET_QOS 16 /* offset in Memory Space specific to QoS Mon */
 #define TMPL_PRI_0 0x03020100
 #define TMPL_PRI_1 0x07060504
@@ -65,6 +67,8 @@
 #define ACC100_MS_IN_US         (1000)
 #define ACC100_DDR_TRAINING_MAX (5000)
 #define ACC100_FABRIC_MODE      0xB
+#define ACC100_ROM_VER_SKU_A    0x5
+#define ACC100_ROM_VER_SKU_B    0x7
 
 /**
  * Definition of Queue Topology for ACC100 Configuration

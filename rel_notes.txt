@@ -1,0 +1,19 @@
+pf_bb_config Release Note
+=========================
+
+21.11 new features and Fixes
+----------------------------
+* acc100: range check for configuration file parsing
+* acc100: report ROM version of ACC100 device
+* acc100: clear persistent error registers
+* acc100: avoid interrupt to be enabled by default
+* acc100: adjust default DDR ROW address to be out of range
+* build:  build script includes the version string
+* doc: clarification on Readme documentation and reset procedure
+
+21.06 new features and Fixes
+----------------------------
+* acc100: adjust the default fabric mode
+* acc100: fixes Qmgr ARAM mapping based on number of VFs
+* acc100: new examples of config files
+
