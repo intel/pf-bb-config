@@ -27,9 +27,6 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#define FPGA_5GNR_FEC_CONFIG_FILE_ENV "FPGA_5GNR_FEC_CONFIG_FILE"
-#define FPGA_5GNR_FEC_CONFIG_FILE_NAME "fpga_5gnr_fec_config.cfg"
-
 /* Multiplier of 256 bits (32 bytes) */
 #define FPGA_RING_DESC_ENTRY_LENGTH (8)
 #define FPGA_RING_DESC_LEN_UNIT_BYTES (32)

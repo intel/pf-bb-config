@@ -23,7 +23,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#include <ini.h>
+#include "cfg_reader.h"
 #include "acc100_cfg_app.h"
 
 /* Names of sections used in the configuration file */
@@ -374,7 +374,7 @@ acc100_parse_conf_file(const char *file_name, struct acc100_conf *acc100_conf)
 
 	set_default_config(acc100_conf);
 
-	ret = ini_parse(file_name, acc100_handler, acc100_conf);
+	ret = cfg_parse(file_name, acc100_handler, acc100_conf);
 
 	if (ret != 0) {
 		printf("ERROR: Config file parser error\n");

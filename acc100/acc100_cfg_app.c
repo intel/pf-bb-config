@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include <ini.h>
+#include "cfg_reader.h"
 #include "acc100_cfg_app.h"
 #include "acc100_pf_enum.h"
 
@@ -105,21 +105,13 @@ static int
 acc100_read_config_file(const char *arg_cfg_filename,
 		struct acc100_conf *acc100_conf)
 {
-	const char *cfg_filename;
-
-	if (arg_cfg_filename == NULL) {
-		cfg_filename = getenv(ACC100_CONFIG_FILE_ENV);
-		if (cfg_filename == NULL) {
-			cfg_filename = ACC100_CONFIG_FILE_NAME;
-			printf("'%s' was not set. %s will be used\n",
-					ACC100_CONFIG_FILE_NAME, cfg_filename);
-		} else
-			printf("'%s=%s' config file will be used\n",
-					ACC100_CONFIG_FILE_ENV, cfg_filename);
+	bool unsafe_path = cfg_file_check_path_safety(arg_cfg_filename);
+	if (unsafe_path == true) {
+		printf("error, config file path \"%s\" is not safe",
+				arg_cfg_filename);
+		return -1;
 	} else
-		cfg_filename = arg_cfg_filename;
-
-	return acc100_parse_conf_file(cfg_filename, acc100_conf);
+		return acc100_parse_conf_file(arg_cfg_filename, acc100_conf);
 }
 
 enum {UL_4G = 0, UL_5G, DL_4G, DL_5G, NUM_ACC};
@@ -312,22 +304,17 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 			acc100_conf->q_dl_4g.num_qgroups);
 
 	/* Template Priority in incremental order */
-	for (template_idx = 0; template_idx < ACC100_NUM_TMPL;
-			template_idx++) {
-		address = HWPfQmgrGrpTmplateReg0Indx +
-		BYTES_IN_WORD * (template_idx % 8);
+	for (template_idx = 0; template_idx < ACC100_NUM_TMPL; template_idx++) {
+		address = HWPfQmgrGrpTmplateReg0Indx + BYTES_IN_WORD * template_idx;
 		payload = TMPL_PRI_0;
 		acc100_reg_write(bar0addr, address, payload);
-		address = HWPfQmgrGrpTmplateReg1Indx +
-		BYTES_IN_WORD * (template_idx % 8);
+		address = HWPfQmgrGrpTmplateReg1Indx + BYTES_IN_WORD * template_idx;
 		payload = TMPL_PRI_1;
 		acc100_reg_write(bar0addr, address, payload);
-		address = HWPfQmgrGrpTmplateReg2indx +
-		BYTES_IN_WORD * (template_idx % 8);
+		address = HWPfQmgrGrpTmplateReg2indx + BYTES_IN_WORD * template_idx;
 		payload = TMPL_PRI_2;
 		acc100_reg_write(bar0addr, address, payload);
-		address = HWPfQmgrGrpTmplateReg3Indx +
-		BYTES_IN_WORD * (template_idx % 8);
+		address = HWPfQmgrGrpTmplateReg3Indx + BYTES_IN_WORD * template_idx;
 		payload = TMPL_PRI_3;
 		acc100_reg_write(bar0addr, address, payload);
 	}
@@ -468,12 +455,10 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	/* ==== HI Configuration ==== */
 
 	/* No Info Ring/MSI by default */
-	address = HWPfHiInfoRingIntWrEnRegPf;
-	payload = 0;
-	acc100_reg_write(bar0addr, address, payload);
-	address = HWPfHiCfgMsiIntWrEnRegPf;
-	payload = 0xFFFFFFFF;
-	acc100_reg_write(bar0addr, address, payload);
+	acc100_reg_write(bar0addr, HWPfHiInfoRingIntWrEnRegPf, 0);
+	acc100_reg_write(bar0addr, HWPfHiInfoRingVf2pfLoWrEnReg, 0);
+	acc100_reg_write(bar0addr, HWPfHiCfgMsiIntWrEnRegPf, 0xFFFFFFFF);
+	acc100_reg_write(bar0addr, HWPfHiCfgMsiVf2pfLoWrEnReg, 0xFFFFFFFF);
 	/* Prevent Block on Transmit Error */
 	address = HWPfHiBlockTransmitOnErrorEn;
 	payload = 0;

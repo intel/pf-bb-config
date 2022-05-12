@@ -21,17 +21,13 @@ CFLAGS=-O0 -g -Wall
 ODIR=build
 DEPS=
 
-ifeq ($(INIH_PATH),)
-INCLUDE=-I. -I./acc100 -I./fpga_lte -I./fpga_5gnr
+INCLUDE=-I. -I./acc100 -I./fpga_lte -I./fpga_5gnr -I./cfg_reader
 LDFLAGS=-L.
-else
-INCLUDE=-I. -I$(INIH_PATH) -I./acc100 -I./fpga_lte -I./fpga_5gnr
-LDFLAGS=-L. -L$(INIH_PATH)
-endif
 
-LDLIBS=-linih
-
-SRC = config_app.c acc100/acc100_cfg_app.c acc100/acc100_cfg_parser.c fpga_lte/fpga_lte_cfg_app.c fpga_lte/fpga_lte_cfg_parser.c fpga_5gnr/fpga_5gnr_cfg_app.c fpga_5gnr/fpga_5gnr_cfg_parser.c
+SRC = config_app.c acc100/acc100_cfg_app.c acc100/acc100_cfg_parser.c \
+	fpga_lte/fpga_lte_cfg_app.c fpga_lte/fpga_lte_cfg_parser.c \
+	fpga_5gnr/fpga_5gnr_cfg_app.c fpga_5gnr/fpga_5gnr_cfg_parser.c \
+	cfg_reader/cfg_reader.c
 OBJ = $(patsubst %.c,$(ODIR)/%.o,$(SRC))
 
 .PHONY: clean
@@ -46,7 +42,7 @@ $(OBJ): $(ODIR)/%.o: ./%.c | $(DEPS) $(ODIR)
 	$(CC) -c -o $@ $< $(CFLAGS) $(INCLUDE)
 
 pf_bb_config: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS) $(LDLIBS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm -rf $(ODIR)

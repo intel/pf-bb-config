@@ -13,35 +13,9 @@ The parameters are parsed from a given configuration file (with .cfg extensions)
 that is specific to a particular baseband device, although they follow same
 format.
 
-## External Dependencies
-
-The third party .INI parser is a prerequisite for building the application.
-It can be downloaded from [github](https://github.com/benhoyt/inih),
-or through git as:
-
-    git clone https://github.com/benhoyt/inih
-
-Use the version release 44 tracked by tag 'r44':
-
-    git checkout r44
-
-The application includes a makefile in the `extra/` directory that generates
-the inih library, which has the filename `libinih.a`.
-To compile the inih library, run the make command as follows:
-
-    make -f Makefile.static
-    /bin/cp libinih.a ..
-
 ## Building the PF BBDEV Config Application
 
-Before building the application, set the following environment variable with
-the location in which the INI library is located:
-
-    export INIH_PATH=<path-to-inih-lib>
-
-If this variable is not set, makefile looks in the current folder.
-
-Next, build the program by typing the `make` command.
+Build the program by typing the `make` command.
 The result is that the `pf_bb_config` binary file is produced.
 
 ## Usage
@@ -50,13 +24,14 @@ The application requires the name of the BBDEV device to configure. Other
 arguments are optional.
 The application executes as follows:
 
-    ./pf_bb_config DEVICE_NAME [-h] [-a] [-c CFG_FILE] [-p PCI_ID]
+    ./pf_bb_config DEVICE_NAME [-h] [-a] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]
 
 * `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100'
 * `-a`: Configures all PCI devices matching the given `DEVICE_NAME`
 * `-h`: Prints help
 * `-c CFG_FILE`: Specifies configuration file to use
 * `-p PCI_ID`: Specifies PCI ID of device to configure
+* `-v VFIO_TOKEN` : `VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci
 
 ## Example
 
@@ -97,6 +72,50 @@ Additional documentation can be found on DPDK for BBDEV usage
 (https://doc.dpdk.org/guides/prog_guide/bbdev.html)
 and within Intel FlexRAN documentation on the Intel Resource & Design Center
 (https://www.intel.com/content/www/us/en/design/resource-design-center.html).
+
+### Using vfio-pci driver
+
+Load the vfio-pci driver with sriov capability enabled:
+
+    modprobe vfio-pci enable_sriov=1 disable_idle_d3=1
+
+Bind the PF with the vfio-pci module:
+
+    $dpdkPath/usertools/dpdk-devbind.py --bind=vfio-pci $pfPciDeviceAddr
+
+Configure the device using the pf_bb_config application for VF usage with both
+5G and 4G enabled:
+
+    ./pf_bb_config ACC100 -v 00112233-4455-6677-8899-aabbccddeeff -c acc100/acc100_config_2vf_4g5g.cfg
+
+Create 2 VFs from the PF using the exposed sysfs interface:
+
+    echo 2 | sudo tee /sys/bus/pci/devices/0000:$pfPciDeviceAddr/sriov_numvfs
+
+Bind both VFs using the vfio-pci module (make sure that Intel® VT-d is enabled):
+
+    $dpdkPath/usertools/dpdk-devbind.py --bind=vfio-pci $vfPciDeviceAddr1 $vfPciDeviceAddr2
+
+Test that the VF is functional on the device using bbdev-test:
+
+    ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} --vfio-vf-token=00112233-4455-6677-8899-aabbccddeeff -- -c validation -v ./ldpc_dec_default.data
+
+NOTE:
+
+    UUID(Universally Unique Identifier) used in the above example
+    (00112233-4455-6677-8899-aabbccddeeff) is for testing purpose only.
+    User should use a random generated UUID in real application, for example
+    using the tools like `uuidgen`.  The UUID format should match
+    the standard defined in RFC4122.
+
+    For binding PF interface with vfio-pci kernel driver:
+    VFIO VF token support is upstreamed in Linux kernel version 5.7.
+    Recommended to use kernel version 5.7 or above or make sure all vfio vf token
+    feature are back ported to your kernel version.
+
+    In case of VFIO mode, pf_bb_config runs daemon mode. To reconfigure first
+    kill the existing pf_bb_config process using:
+    pkill pf_bb_config
 
 ## Notes on the IOMMU usage
 

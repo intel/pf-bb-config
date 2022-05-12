@@ -1,6 +1,13 @@
 pf_bb_config Release Note
 =========================
 
+22.03 new features and fixes
+----------------------------
+* pf_bb_config: Remove dependency on inih library for config file parsing
+* pf_bb_config: Support for binding PF to vfio-pci and related VF token
+* config files: Adjustment for PF which only needs a single VF bundle set
+* doc: Documentation update and clarifications
+
 21.11 new features and Fixes
 ----------------------------
 * acc100: range check for configuration file parsing

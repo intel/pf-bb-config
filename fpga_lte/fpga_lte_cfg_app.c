@@ -25,9 +25,7 @@
 #include <errno.h>
 
 #include "fpga_lte_cfg_app.h"
-
-#define FPGA_LTE_FEC_CONFIG_FILE_ENV "FPGA_LTE_FEC_CONFIG_FILE"
-#define FPGA_LTE_FEC_CONFIG_FILE_NAME "fpga_lte_fec_config.cfg"
+#include "cfg_reader.h"
 
 /* Multiplier of 256 bits (32 bytes) */
 #define FPGA_RING_DESC_ENTRY_LENGTH (8)
@@ -153,21 +151,14 @@ static int
 fpga_read_config_file(const char *arg_cfg_filename,
 		struct fpga_lte_fec_conf *fpga_lte_fec_conf)
 {
-	const char *cfg_filename;
-
-	if (arg_cfg_filename == NULL) {
-		cfg_filename = getenv(FPGA_LTE_FEC_CONFIG_FILE_ENV);
-		if (cfg_filename == NULL) {
-			cfg_filename = FPGA_LTE_FEC_CONFIG_FILE_NAME;
-			printf("'%s' was not set. %s will be used\n",
-				FPGA_LTE_FEC_CONFIG_FILE_NAME, cfg_filename);
-		} else
-			printf("'%s=%s' config file will be used\n",
-				FPGA_LTE_FEC_CONFIG_FILE_ENV, cfg_filename);
+	bool unsafe_path = cfg_file_check_path_safety(arg_cfg_filename);
+	if (unsafe_path == true) {
+		printf("error, config file path \"%s\" is not safe",
+				arg_cfg_filename);
+		return -1;
 	} else
-		cfg_filename = arg_cfg_filename;
-
-	return fpga_lte_parse_conf_file(cfg_filename, fpga_lte_fec_conf);
+		return fpga_lte_parse_conf_file(arg_cfg_filename,
+				fpga_lte_fec_conf);
 }
 
 /* Read Static Register of FPGA LTE FEC device */

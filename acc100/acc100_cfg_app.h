@@ -19,9 +19,6 @@
 #ifndef _ACC100_CFG_APP_H_
 #define _ACC100_CFG_APP_H_
 
-#define ACC100_CONFIG_FILE_ENV "ACC100_CONFIG_FILE"
-#define ACC100_CONFIG_FILE_NAME "acc100_config.cfg"
-
 #define ACC100_DDR_ECC_ENABLE
 
 #define BYTES_IN_WORD 4

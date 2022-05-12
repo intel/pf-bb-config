@@ -23,7 +23,7 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#include <ini.h>
+#include "cfg_reader.h"
 #include "fpga_5gnr_cfg_app.h"
 
 /* Names of sections used in the configuration file */
@@ -161,7 +161,7 @@ fpga_5gnr_parse_conf_file(const char *file_name,
 
 	set_default_config(fpga_conf);
 
-	ret = ini_parse(file_name, fpga_handler, fpga_conf);
+	ret = cfg_parse(file_name, fpga_handler, fpga_conf);
 
 	if (ret == -1) {
 		printf("ERROR: Error loading configuration file %s\n",
