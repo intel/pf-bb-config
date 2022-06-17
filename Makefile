@@ -16,13 +16,11 @@
 #
 #******************************************************************************/
 
-CC=gcc
-CFLAGS=-O0 -g -Wall
+CFLAGS?=-O0 -g -Wall
 ODIR=build
 DEPS=
 
 INCLUDE=-I. -I./acc100 -I./fpga_lte -I./fpga_5gnr -I./cfg_reader
-LDFLAGS=-L.
 
 SRC = config_app.c acc100/acc100_cfg_app.c acc100/acc100_cfg_parser.c \
 	fpga_lte/fpga_lte_cfg_app.c fpga_lte/fpga_lte_cfg_parser.c \
