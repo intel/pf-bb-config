@@ -331,6 +331,10 @@ sysfs_get_bar0_mapping(const char *pci_addr, unsigned int bar_size)
 	map = mmap(0, bar_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			bar0addrfd, 0);
 	close(bar0addrfd);
+	if (map == MAP_FAILED) {
+		printf("ERR:SYSFS: mmap failed\n");
+		map = NULL; /* MAP_FAILED is not equal to NULL */
+	}
 	return map;
 }
 
