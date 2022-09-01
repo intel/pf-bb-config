@@ -1,6 +1,15 @@
 pf_bb_config Release Note
 =========================
 
+22.07 new features and fixes
+----------------------------
+* acc200: Support for ACC200 accelerator (SPR-EE)
+* pf_bb_config: Support for CLI interface and telemetry
+* pf_bb_config: Update to Makefile for stronger security check
+* acc100: update of the PCIe adaptation for improved PCIe BER performance
+* acc100: enabling queue at the end to prevent access while configuration is ongoing
+* pf_bb_config: refactor logging mechanism
+
 22.03 new features and fixes
 ----------------------------
 * pf_bb_config: Remove dependency on inih library for config file parsing

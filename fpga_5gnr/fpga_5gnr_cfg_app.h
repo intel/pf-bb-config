@@ -96,9 +96,4 @@ fpga_5gnr_fec_conf {
 	uint8_t dl_load_balance;
 };
 
-/**
- * Configure FPGA
- */
-int fpga_5gnr_configure(void *bar0addr, const char *arg_cfg_filename);
-
 #endif /* _FPGA_5GNR_CFG_APP_H_ */

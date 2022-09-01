@@ -15,7 +15,8 @@ format.
 
 ## Building the PF BBDEV Config Application
 
-Build the program by typing the `make` command.
+Build the program by typing the `./build.sh` command, this would also update the version string
+in the source code.
 The result is that the `pf_bb_config` binary file is produced.
 
 ## Usage
@@ -130,6 +131,37 @@ To check that IOMMU is actually enabled at run time use the following command:
 Additional information on vfio can be found on the related kernel documentation
 page (https://www.kernel.org/doc/Documentation/vfio.txt)
 
+## Details for ACC200 Configuration (SPR-EE)
+
+* A number of configuration file examples are available in the acc200 directory.
+These examples include the following parameters, which can be modified for a
+specific use case.
+
+* The `pf_mode_en` parameter refers to the case for which the workload is run
+from PF, or alternatively from the VF (Single Root I/O Virtualization (SR-IOV)).
+Default usage is using SR-IOV.
+
+* There are sixteen Queue Groups (QGroups) available (made of up to 16 queues
+x 16 VFs each), which can be allocated to any available operation
+(4GUL/4GDL/5GUL/5GDL/FFT) based on the `num_qgroups` parameter.
+For example, 4x QGroups for 5GUL and 4x QGroups for 5GDL can be allocated when
+only 5G processing is required, and these QGroups cover four distinct
+incremental priority levels.
+The only limitation (which would be flagged by the configuration tool if
+exceeded) is for the total number of QGroups x num_aqs x aq_depth x vf_bundles
+to be less than 64K. (The num_aqs parameter is the number of atomic queues,
+the aq_depth parameter is the atomic queue depth, and the vf_bundles parameter
+is the number of VF bundles.).
+
+* The `num_aqs_per_groups` defines the number of atomic queues within a VF
+bundle for a given QGroup.
+The range is 1 to 16, with 16 being the default and recommended value.
+There can be a maximum of 16 * 16 * 16 = 4K total queues.
+
+* An example of default configuration file may be acc200/acc200_config_16vf.cfg which includes
+the configuration for 16 VFs in SRIOV mode with a total of 16 x 16 queues per VF covering
+all the possible processing engine functions.
+
 ## Details for ACC100 Configuration
 
 * A number of configuration file examples are available in the acc100 directory.
@@ -214,6 +246,20 @@ Trigger VF FLR on one of the VFs (the one under $(VF_PCI_ADDR) BDF) with the
 following command:
 
     echo 1 >> /sys/bus/pci/devices/0000\:${VF_PCI_ADDR}/reset
+
+## CLI interface
+
+When running in daemon mode (VFIO mode) the pf_bb_config application is running as a service and
+exposes a socket for CLI interaction.
+This can notably being used for telemetry, register dump capture or other interactions at run time:
+- RESET_MODE_CMD_ID -> To set reset mode of ACC devices (pf_flr / cluster_reset).
+- AUTO_RESET_CMD_ID -> To set auto reset mode of ACC devices (on / off).
+- CLEAR_LOG_CMD_ID -> To clear the previous content of logfile.
+- EXIT_APP_CMD_ID -> To gracefully shutdown the application.
+- REG_DUMP_CMD_ID -> To dump all the register status of the ACC device (DEVICE_ID).
+- RECONFIG_ACC_CMD_ID -> To reconfigure the ACC device (DEVICE_ID).
+- MM_READ_CMD_ID -> To read/write to a register.
+- DEVICE_DATA_CMD_ID -> To dump telemetry data.
 
 ## Conversion to PDF
 

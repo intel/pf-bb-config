@@ -23,10 +23,13 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/mman.h>
 
 #include "cfg_reader.h"
 #include "acc100_cfg_app.h"
 #include "acc100_pf_enum.h"
+#include "bb_acc.h"
+#include "bb_acc_log.h"
 
 static void
 acc100_reg_write(uint8_t *mmio_base, uint32_t offset, uint32_t payload)
@@ -107,7 +110,7 @@ acc100_read_config_file(const char *arg_cfg_filename,
 {
 	bool unsafe_path = cfg_file_check_path_safety(arg_cfg_filename);
 	if (unsafe_path == true) {
-		printf("error, config file path \"%s\" is not safe",
+		LOG(ERR, "config file path \"%s\" is not safe",
 				arg_cfg_filename);
 		return -1;
 	} else
@@ -158,7 +161,7 @@ qtopFromAcc(struct q_topology_t **qtop, int acc_enum,
 		break;
 	default:
 		/* NOTREACHED */
-		printf("Unexpected error evaluating qtopFromAcc");
+		LOG(ERR, "Unexpected error evaluating qtopFromAcc");
 		break;
 	}
 	*qtop = p_qtop;
@@ -189,10 +192,10 @@ aqNum(int qg_idx, struct acc100_conf *acc100_conf)
 }
 
 static int
-acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
+acc100_write_config(void *dev, void *mapaddr, struct acc100_conf *acc100_conf)
 {
 	uint32_t payload, address, status;
-	int qg_idx, template_idx, vf_idx, acc, xl, i;
+	int qg_idx, template_idx, vf_idx, acc, xl, i, j;
 	/* QMGR_ARAM - memory internal to ACC100 */
 	uint32_t aram_address = 0;
 
@@ -201,7 +204,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	payload = acc100_reg_read(bar0addr, HwPfPcieGpexBridgeControl);
 	bool firstCfg = (payload != ACC100_CFG_PCI_BRIDGE);
 	if (payload == 0xFFFFFFFF) {
-		printf("MMIO is not accessible causing UR error over PCIe\n");
+		LOG(ERR, "MMIO is not accessible causing UR error over PCIe");
 		return 1;
 	}
 
@@ -253,6 +256,12 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	address = HWPfDmaAxcacheReg;
 	acc100_reg_write(bar0addr, address, payload);
 
+	/* Adjust PCIe Lane adaptation */
+	for (i = 0; i < ACC100_QUAD_NUMS; i++)
+		for (j = 0; j < ACC100_LANES_PER_QUAD; j++)
+			acc100_reg_write(bar0addr, HwPfPcieLnAdaptctrl + i * ACC100_PCIE_QUAD_OFFSET
+					+ j * ACC100_PCIE_LANE_OFFSET, ACC100_ADAPT);
+
 	/* Enable PCIe live adaptation */
 	for (i = 0; i < ACC100_QUAD_NUMS; i++)
 		acc100_reg_write(bar0addr, HwPfPciePcsEqControl +
@@ -297,7 +306,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		payload = (1 << 16) + (1 << (aqDepth(qg_idx, acc100_conf) - 1));
 		acc100_reg_write(bar0addr, address, payload);
 	}
-	printf("Queue Groups: %d 5GUL, %d 5GDL, %d 4GUL, %d 4GDL\n",
+	LOG(INFO, "Queue Groups: %d 5GUL, %d 5GDL, %d 4GUL, %d 4GDL",
 			acc100_conf->q_ul_5g.num_qgroups,
 			acc100_conf->q_dl_5g.num_qgroups,
 			acc100_conf->q_ul_4g.num_qgroups,
@@ -365,7 +374,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		payload = 0;
 		#endif
 	}
-	printf("Number of 5GUL engines %d\n", numEngines);
+	LOG(DEBUG, "Number of 5GUL engines %d", numEngines);
 	/* 4GDL */
 	numQqsAcc += numQgs;
 	numQgs	= acc100_conf->q_dl_4g.num_qgroups;
@@ -415,20 +424,6 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 		acc100_reg_write(bar0addr, address, payload);
 	}
 
-	/* Enabling AQueues through the Queue hierarchy*/
-	for (vf_idx = 0; vf_idx < ACC100_NUM_VFS; vf_idx++) {
-		for (qg_idx = 0; qg_idx < ACC100_NUM_QGRPS; qg_idx++) {
-			payload = 0;
-			if (vf_idx < acc100_conf->num_vf_bundles &&
-					qg_idx < totalQgs)
-				payload = (1 << aqNum(qg_idx, acc100_conf)) - 1;
-			address = HWPfQmgrAqEnableVf
-					+ vf_idx * BYTES_IN_WORD;
-			payload += (qg_idx << 16);
-			acc100_reg_write(bar0addr, address, payload);
-		}
-	}
-
 	/* This pointer to ARAM (128kB) is shifted by 2 (4B per register) */
 	for (qg_idx = 0; qg_idx < totalQgs; qg_idx++) {
 		for (vf_idx = 0; vf_idx < acc100_conf->num_vf_bundles;
@@ -448,7 +443,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	}
 
 	if (aram_address > (WORDS_IN_ARAM_SIZE)) {
-		printf("ARAM Configuration not fitting into 128kB\n");
+		LOG(ERR, "ARAM Configuration not fitting into 128kB");
 		return -EINVAL;
 	}
 
@@ -459,6 +454,7 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	acc100_reg_write(bar0addr, HWPfHiInfoRingVf2pfLoWrEnReg, 0);
 	acc100_reg_write(bar0addr, HWPfHiCfgMsiIntWrEnRegPf, 0xFFFFFFFF);
 	acc100_reg_write(bar0addr, HWPfHiCfgMsiVf2pfLoWrEnReg, 0xFFFFFFFF);
+
 	/* Prevent Block on Transmit Error */
 	address = HWPfHiBlockTransmitOnErrorEn;
 	payload = 0;
@@ -473,9 +469,9 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	payload = (acc100_conf->pf_mode_en) ? 2 : 0;
 	acc100_reg_write(bar0addr, address, payload);
 	if (acc100_conf->pf_mode_en)
-		printf("Configuration in PF mode\n");
+		LOG(INFO, "Configuration in PF mode");
 	else
-		printf("Configuration in VF mode\n");
+		LOG(INFO, "Configuration in VF mode");
 
 	/* QoS overflow init */
 	payload = 1;
@@ -685,18 +681,18 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 	/* Report SKU version of the device */
 	payload = acc100_reg_read(bar0addr, HwPfPcieRomVersion);
 	if (payload == ACC100_ROM_VER_SKU_A)
-		printf(" ROM version MM 99AD92\n");
+		LOG(INFO, " ROM version MM 99AD92");
 	else if (payload == ACC100_ROM_VER_SKU_B)
-		printf(" ROM version MM 99ANA5\n");
+		LOG(INFO, " ROM version MM 99ANA5");
 	else
-		printf(" ROM version -undefined-\n");
+		LOG(INFO, " ROM version -undefined-");
 
 	uint32_t version = 0;
 	for (i = 0; i < 4; i++)
 		version += acc100_reg_read(bar0addr,
 				HWPfDdrPhyIdtmFwVersion + 4 * i) << (8 * i);
 	if (version != ACC100_PRQ_DDR_VER) {
-		printf("* Note: Not on DDR PRQ version %8x != %08x\n",
+		LOG(WARN, "* Note: Not on DDR PRQ version %8x != %08x",
 				version, ACC100_PRQ_DDR_VER);
 	} else if (firstCfg) {
 		/* ---- DDR configuration at boot up --- */
@@ -768,33 +764,75 @@ acc100_write_config(void *mapaddr, struct acc100_conf *acc100_conf)
 			if (payload & 1)
 				break;
 		}
-		printf("DDR Training completed in %d ms", i);
+		LOG(INFO, "DDR Training completed in %d ms", i);
 		/* Enable Memory Controller */
 		acc100_reg_write(bar0addr, HWPfDdrUmmcCtrl, 0x401);
 		/* Release AXI interface reset */
 		acc100_reg_write(bar0addr, HWPfChaDdrSifRstCfg, 3);
 	}
 
-	printf("PF ACC100 configuration complete\n");
+	/* Enabling AQueues through the Queue hierarchy*/
+	for (vf_idx = 0; vf_idx < ACC100_NUM_VFS; vf_idx++) {
+		for (qg_idx = 0; qg_idx < ACC100_NUM_QGRPS; qg_idx++) {
+			payload = 0;
+			if (vf_idx < acc100_conf->num_vf_bundles &&
+					qg_idx < totalQgs)
+				payload = (1 << aqNum(qg_idx, acc100_conf)) - 1;
+			address = HWPfQmgrAqEnableVf
+					+ vf_idx * BYTES_IN_WORD;
+			payload += (qg_idx << 16);
+			acc100_reg_write(bar0addr, address, payload);
+		}
+	}
+
+	LOG(INFO, "PF ACC100 configuration complete");
 	return 0;
 }
 
 int
-acc100_configure(void *bar0addr, const char *cfg_filename)
+acc100_configure(void *dev, void *bar0addr, const char *cfg_filename)
 {
 	struct acc100_conf acc100_conf;
 	int ret;
 
 	ret = acc100_read_config_file(cfg_filename, &acc100_conf);
 	if (ret != 0) {
-		printf("Error reading config file.\n");
+		LOG(ERR, "Error reading config file");
 		return -1;
 	}
 
-	ret = acc100_write_config(bar0addr, &acc100_conf);
+	ret = acc100_write_config(dev, bar0addr, &acc100_conf);
 	if (ret != 0) {
-		printf("Error writing configuration for ACC100.\n");
+		LOG(ERR, "Error writing configuration for ACC100");
 		return -1;
 	}
+	hw_device *accel_dev = (hw_device *)dev;
+	accel_dev->numvfs = acc100_conf.num_vf_bundles;
+
 	return 0;
 }
+
+void acc100_device_data(void *dev)
+{
+	uint32_t vf_idx;
+
+	hw_device *accel_dev = (hw_device *)dev;
+
+	LOG(INFO, "Device Status:: %d VFs\n", accel_dev->numvfs);
+	for (vf_idx = 0; vf_idx < accel_dev->numvfs; vf_idx++)
+		LOG(INFO, "-  VF %d %s\n", vf_idx,
+			 bb_acc_device_status_str(accel_dev->dev_status[vf_idx]));
+	LOG(INFO, "5GUL counters: Code Blocks");
+	print_all_stat32(accel_dev, HWPfPermonACountVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
+	LOG(INFO, "5GUL counters: Data (Bytes)");
+	print_all_stat32(accel_dev, HWPfPermonAKCntLoVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
+	LOG(INFO, "5GUL counters: Per Engine");
+	print_all_stat32(accel_dev, HWPfPermonACbCountFec, ACC100_5GUL_ENGS, ACC100_PMON_OFF_2);
+	LOG(INFO, "5GDL counters: Code Blocks");
+	print_all_stat32(accel_dev, HWPfPermonBCountVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
+	LOG(INFO, "5GDL counters: Data (Bytes)");
+	print_all_stat32(accel_dev, HWPfPermonBKCntLoVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
+	LOG(INFO, "5GDL counters: Per Engine");
+	print_all_stat32(accel_dev, HWPfPermonBCbCountFec, ACC100_5GDL_ENGS, ACC100_PMON_OFF_2);
+}
+

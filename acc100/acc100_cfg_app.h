@@ -45,6 +45,7 @@
 
 #define ACC100_NUM_VFS 16 /**< Number of Virtual Functions ACC100 supports */
 #define ACC100_QMGR_BA_STRIDE 64  /**< Base address stride for Qmgr */
+#define ACC100_INFO_RING_NUM_ENTRIES 1024
 
 /* ACC100 Configuration */
 #define ACC100_CFG_DDR_ECC_EN 0x842304
@@ -55,8 +56,11 @@
 #define ACC100_CFG_PCI_AXI 0xC003
 #define ACC100_CFG_PCI_BRIDGE 0x40006033
 #define ACC100_QUAD_NUMS 4
+#define ACC100_LANES_PER_QUAD 4
+#define ACC100_PCIE_LANE_OFFSET 0x200
 #define ACC100_PCIE_QUAD_OFFSET 0x2000
 #define ACC100_PCS_EQ 0x6007
+#define ACC100_ADAPT 0x8400
 #define ACC100_CLOCK_GATING_EN  0x30000
 /* DDR Size to be split across VFs */
 #define ACC100_HARQ_TOTAL_DDR   (4096)
@@ -67,6 +71,11 @@
 #define ACC100_ROM_VER_SKU_A    0x5
 #define ACC100_ROM_VER_SKU_B    0x7
 
+
+#define ACC100_5GUL_ENGS 8
+#define ACC100_5GDL_ENGS 3
+#define ACC100_PMON_OFF_1 256
+#define ACC100_PMON_OFF_2 16
 /**
  * Definition of Queue Topology for ACC100 Configuration
  * Some level of details is abstracted out to expose a clean interface
@@ -129,13 +138,39 @@ struct acc100_conf {
 	struct arbitration_t arb_dl_5g[ACC100_NUM_VFS];
 };
 
+typedef struct {
+	char *name;
+	bool use_det_info;
+} acc100_ir_int_type_info;
+
+/* Union describing Info Ring entry */
+union acc100_info_ring_data {
+	uint32_t val;
+	struct {
+		union {
+			uint16_t detailed_info;
+			struct {
+				uint16_t aq_id: 4;
+				uint16_t qg_id: 4;
+				uint16_t vf_id: 6;
+				uint16_t reserved: 2;
+			};
+		};
+		uint16_t int_nb: 7;
+		uint16_t msi_0: 1;
+		uint16_t vf2pf: 6;
+		uint16_t loop: 1;
+		uint16_t valid: 1;
+	};
+} __attribute__((packed));
+
+
 /*
  * Configure ACC100
  */
-int
-acc100_configure(void *bar0addr, const char *arg_cfg_filename);
 
-int
+extern int
 acc100_parse_conf_file(const char *file_name, struct acc100_conf *acc100_conf);
 
 #endif /* _ACC100_CFG_APP_H_ */
+

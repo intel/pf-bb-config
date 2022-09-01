@@ -50,9 +50,4 @@ fpga_lte_fec_conf {
 	uint16_t flr_time_out;
 };
 
-/**
- * Configure FPGA
- */
-int fpga_lte_configure(void *bar0addr, const char *arg_cfg_filename);
-
 #endif /* _FPGA_CFG_APP_H_ */

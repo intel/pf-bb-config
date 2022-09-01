@@ -34,288 +34,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <libgen.h>
+#include <sys/eventfd.h>
 
-#include "acc100_cfg_app.h"
-#include "fpga_lte_cfg_app.h"
-#include "fpga_5gnr_cfg_app.h"
-
-#define SYS_DIR "/sys/bus/pci/devices"
-#define CUR_DIR "."
-#define PREV_DIR ".."
-
-#define DEVICE_FILE  "device"
-#define VENDOR_FILE  "vendor"
-#define BAR0_FILE    "resource0"
-
-#define PCI_STR_SIZE 15
-#define NULL_PAD     2
-
-#define ACC100_VENDOR_ID        0x8086
-#define ACC100_DEVICE_ID        0x0D5C
-#define FPGA_LTE_FEC_VENDOR_ID  0x1172
-#define FPGA_LTE_FEC_DEVICE_ID  0x5052
-#define FPGA_5GNR_FEC_VENDOR_ID 0x8086
-#define FPGA_5GNR_FEC_DEVICE_ID 0x0D8F
-
-#define VFIO_VF_TOKEN_LEN 16
-#define VFIO_VF_TOKEN_STR_LEN 36
-#define SLEEP_30SEC 30
-
-/* Function Pointer for device specific configuration file */
-typedef int (*configuration)(void *bar0addr, const char *arg_cfg_filename);
-
-typedef struct hw_device {
-	const char *device_name;
-	char *config_file;
-	int vendor_id;
-	int device_id;
-	char pci_address[PCI_STR_SIZE];
-	bool driver_found;
-	configuration conf;
-	int config_all;
-	int vfio_mode;
-	unsigned char vfio_vf_token[VFIO_VF_TOKEN_LEN];
-} hw_device;
-
-
-static int vfio_get_device_groupid(const char *pci_addr)
-{
-	char device_iommu_group[PATH_MAX];
-	char group_path[PATH_MAX];
-	char *group_name;
-	int groupid = -1;
-	int len;
-
-	snprintf(device_iommu_group, sizeof(device_iommu_group),
-			"%s/%s/iommu_group", SYS_DIR, pci_addr);
-	len = readlink(device_iommu_group, group_path, sizeof(group_path));
-	if (len < 0) {
-		printf("ERR:VFIO: iommu_group error for %s\n", pci_addr);
-		return -1;
-	}
-	group_path[len] = 0;
-
-	group_name = basename(group_path);
-	groupid = strtol(group_name, NULL, 10);
-	if (groupid == 0) {
-		printf("ERR:VFIO: Faild to read %s\n", group_path);
-		return -1;
-	}
-
-	return groupid;
-}
-
-static int uuid_parse(char *uuid_str, unsigned char *uuid)
-{
-	int i, inx;
-	int high_n = 1;
-	unsigned char tmp;
-
-	if (strlen(uuid_str) != VFIO_VF_TOKEN_STR_LEN) {
-		printf("ERR:uuid string len is wrong: %d\n", (int)strlen(uuid_str));
-		return -1;
-	}
-	for (i = 0, inx = 0;
-		((i < VFIO_VF_TOKEN_STR_LEN) && (inx < VFIO_VF_TOKEN_LEN)); i++) {
-		if (uuid_str[i] == '-') {
-			if ((i ==  8) || (i == 13) || (i == 18) || (i == 23))
-				continue;
-		}
-		if (!isxdigit(uuid_str[i])) {
-			printf("ERR: unknown char in uuid string\n");
-			return -1;
-		}
-		tmp = isdigit(uuid_str[i]) ? uuid_str[i] - '0' :
-				tolower(uuid_str[i]) - 'a' + 0xA;
-
-		if (high_n) {
-			uuid[inx] = (tmp & 0xF) << 4;
-			high_n = 0;
-		} else {
-			uuid[inx++] |= (tmp & 0xF);
-			high_n = 1;
-		}
-	}
-
-	return 0;
-}
-
-#ifdef VFIO_DEVICE_FEATURE
-static void uuid_unparse(unsigned char *uuid, char *uuid_str)
-{
-	char *ptr = uuid_str;
-	int temp;
-	int i;
-
-	for (i = 0; i < VFIO_VF_TOKEN_LEN; i++) {
-		if (i == 4 || i == 6 || i == 8 || i == 10)
-			*ptr++ = '-';
-
-		temp = (uuid[i] >> 4) & 0xF;
-		*ptr++ = (temp < 10) ? temp + '0' : 'a' + (temp - 10);
-		temp = (uuid[i] & 0xF);
-		*ptr++ = (temp < 10) ? temp + '0' : 'a' + (temp - 10);
-	}
-	*ptr = '\0';
-}
-#endif
-
-static int vfio_set_token(hw_device *hwd, int vfio_dev_fd)
-{
-#ifdef VFIO_DEVICE_FEATURE
-	int ret;
-	char uuid_string[VFIO_VF_TOKEN_STR_LEN+1];
-	struct vfio_device_feature *device_feature;
-
-	device_feature = (struct vfio_device_feature *)
-			malloc(sizeof(struct vfio_device_feature) + VFIO_VF_TOKEN_LEN);
-	if (device_feature == NULL) {
-		printf("ERR:VFIO: memory allocaton failed\n");
-		return -1;
-	}
-
-	/* Set the secret token shared between PF and VF */
-	printf("INFO:VFIO: Setting VFIO_DEVICE_FEATURE with UUID token : ");
-
-	device_feature->argsz = sizeof(device_feature) + VFIO_VF_TOKEN_LEN;
-	device_feature->flags = VFIO_DEVICE_FEATURE_SET | VFIO_DEVICE_FEATURE_PCI_VF_TOKEN;
-	memcpy(device_feature->data, hwd->vfio_vf_token, VFIO_VF_TOKEN_LEN);
-	uuid_unparse(device_feature->data, uuid_string);
-	printf(" [%s] ", uuid_string);
-
-	ret = ioctl(vfio_dev_fd, VFIO_DEVICE_FEATURE, device_feature);
-	free(device_feature);
-	if (ret) {
-		printf("ERR:VFIO: Fail to set VFIO_DEVICE_FEATURE with UUID token\n");
-		return -1;
-	}
-	printf("Success\n");
-	return 0;
-#else
-	printf("ERR:VFIO: VFIO_DEVICE_FEATURE IOCTL is not supported in OS\n");
-	return -1;
-#endif
-}
-
-void *vfio_get_bar0_mapping(const char *pci_addr, unsigned int bar_size,
-										hw_device *hwd)
-{
-	int ret, groupid;
-	int vfio_container_fd, vfio_group_fd, vfio_dev_fd;
-	char path[PATH_MAX];
-	void *map = NULL;
-
-	struct vfio_group_status group_status = {
-		.argsz = sizeof(group_status)
-	};
-
-	struct vfio_device_info device_info = {
-		.argsz = sizeof(device_info)
-	};
-
-	struct vfio_region_info region_info = {
-		.argsz = sizeof(region_info)
-	};
-
-	vfio_container_fd = open("/dev/vfio/vfio", O_RDWR);
-	if (vfio_container_fd < 0) {
-		printf("ERR:VFIO: Failed to open /dev/vfio/vfio, %d (%s)\n",
-				vfio_container_fd, strerror(errno));
-		goto error0;
-	}
-
-	groupid = vfio_get_device_groupid(pci_addr);
-	if (groupid == -1) {
-		printf("ERROR:VFIO: Failed to get groupid\n");
-		goto error1;
-	}
-	printf("INFO:VFIO: Using PCI device [%s] in group %d\n", pci_addr, groupid);
-
-	snprintf(path, sizeof(path), "/dev/vfio/%d", groupid);
-	vfio_group_fd = open(path, O_RDWR);
-	if (vfio_group_fd < 0) {
-		printf("ERR:VFIO: Failed to open %s, %d (%s)\n",
-				path, vfio_group_fd, strerror(errno));
-		printf("ERR:VFIO: Device [%s] not bind to vfio-pci driver\n",
-				pci_addr);
-		goto error1;
-	}
-
-	ret = ioctl(vfio_group_fd, VFIO_GROUP_GET_STATUS, &group_status);
-	if (ret) {
-		printf("ERR:VFIO: ioctl(VFIO_GROUP_GET_STATUS) failed\n");
-		goto error2;
-	}
-
-	if (!(group_status.flags & VFIO_GROUP_FLAGS_VIABLE)) {
-		printf("ERROR:VFIO: Group not viable, are all devices attached to vfio?\n");
-		goto error2;
-	}
-
-	/* NOTE: set container ioctl will attach the vfio_group_fd
-	* to vfio_container_fd, will not override the vfio_conatiner_fd
-	*/
-	ret = ioctl(vfio_group_fd, VFIO_GROUP_SET_CONTAINER, &vfio_container_fd);
-	if (ret) {
-		printf("ERR:VFIO: Failed to set group container\n");
-		goto error2;
-	}
-
-	ret = ioctl(vfio_container_fd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
-	if (ret) {
-		printf("ERR:VFIO: Failed to set IOMMU\n");
-		goto error2;
-	}
-
-	vfio_dev_fd = ioctl(vfio_group_fd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
-	if (vfio_dev_fd < 0) {
-		printf("ERR:VFIO: Failed to get device %s\n", pci_addr);
-		goto error2;
-	}
-
-	if (ioctl(vfio_dev_fd, VFIO_DEVICE_GET_INFO, &device_info)) {
-		printf("ERR:VFIO: Failed to get device info\n");
-		goto error2;
-	}
-
-	/* Configure VFIO token */
-	if (hwd->vfio_mode) {
-		if (vfio_set_token(hwd, vfio_dev_fd) < 0) {
-			printf("ERR:VFIO: Fail to set VFIO_DEVICE_FEATURE with UUID token\n");
-			goto error3;
-		}
-	}
-
-	/* Map BAR0 region */
-	region_info.index = 0;
-	if (ioctl(vfio_dev_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info)) {
-		printf("ERR:VFIO: Failed to get region(%d) info\n", region_info.index);
-		goto error3;
-	}
-
-	if (region_info.flags & VFIO_REGION_INFO_FLAG_MMAP) {
-		map = mmap(NULL, (size_t)region_info.size,
-				PROT_READ | PROT_WRITE, MAP_SHARED, vfio_dev_fd,
-				(off_t)region_info.offset);
-		if (map == MAP_FAILED) {
-			printf("ERR:VFIO: mmap failed\n");
-			map = NULL; /* MAP_FAILED is not equal to NULL */
-			goto error3;
-		}
-	}
-
-error3:
-	close(vfio_dev_fd);
-error2:
-	close(vfio_group_fd);
-error1:
-	close(vfio_container_fd);
-error0:
-	return map;
-}
+#include "bb_acc.h"
+#include "bb_acc_log.h"
 
 static void *
-sysfs_get_bar0_mapping(const char *pci_addr, unsigned int bar_size)
+uio_get_bar0_mapping(const char *pci_addr,
+		unsigned int bar_size, void *dev)
 {
 	char bar0path[PATH_MAX];
 	int bar0addrfd;
@@ -325,20 +51,13 @@ sysfs_get_bar0_mapping(const char *pci_addr, unsigned int bar_size)
 			"%s/%s/%s", SYS_DIR, pci_addr, BAR0_FILE);
 	bar0addrfd = open(bar0path, O_RDWR | O_SYNC);
 	if (bar0addrfd < 0) {
-		printf("\nFailed to open BAR %s\n", bar0path);
+		LOG(ERR, "Failed to open BAR %s", bar0path);
 		exit(1);
 	}
 	map = mmap(0, bar_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			bar0addrfd, 0);
 	close(bar0addrfd);
 	return map;
-}
-
-static void *
-get_bar0_mapping(const char *pci_addr, unsigned int bar_size, hw_device *device)
-{
-	return (device->vfio_mode) ? vfio_get_bar0_mapping(pci_addr, bar_size, device) :
-			sysfs_get_bar0_mapping(pci_addr, bar_size);
 }
 
 static unsigned long
@@ -349,7 +68,7 @@ get_file_val(const char *file_path)
 
 	f = fopen(file_path, "r");
 	if (NULL == f) {
-		printf("\nFailed to open %s\n", file_path);
+		LOG(ERR, "Failed to open %s", file_path);
 		exit(1);
 	}
 	if (fgets(content, sizeof(content), f) == NULL) {
@@ -373,7 +92,7 @@ get_device_id(hw_device *device, const char *location)
 	snprintf(pci_path, sizeof(pci_path), "%s/%s", SYS_DIR, location);
 	dir = opendir(pci_path);
 	if (dir == NULL) {
-		printf("Failed to open %s (%s)\n", pci_path, strerror(errno));
+		LOG(ERR, "Failed to open %s (%s)", pci_path, strerror(errno));
 		return false;
 	}
 
@@ -391,7 +110,7 @@ get_device_id(hw_device *device, const char *location)
 		int snprintf_ret =  snprintf(file_path, sizeof(file_path), "%s/%s",
 				pci_path, dirent->d_name);
 		if (snprintf_ret < 0)
-			printf("Failed to format PCI path\n");
+			LOG(ERR, "Failed to format PCI path");
 
 		/* Get Device ID */
 		if (strncmp(dirent->d_name, DEVICE_FILE,
@@ -457,14 +176,14 @@ match_device(char *pci_address, char **found_devices, int num_devices)
 			return 0;
 	}
 
-	printf("Given PCI ID is not available\n");
+	printf("ERR: Given PCI ID is not available");
 	return -1;
 }
 
 static int
 select_device(hw_device *device, char **found_devices, int num_devices)
 {
-	int i, selected;
+	int i, selected, ret;
 	/* If more than one device found, get user input on which to use */
 	if (num_devices >= 2) {
 		printf("More than one device found. Please select which device you would like to use from the list:\n");
@@ -474,8 +193,8 @@ select_device(hw_device *device, char **found_devices, int num_devices)
 			printf("[%i]: %s\n", i+1, found_devices[i]);
 
 		printf("> ");
-		scanf("%d", &selected);
-		if (selected >= 1 && selected <= num_devices) {
+		ret = scanf("%d", &selected);
+		if (selected >= 1 && selected <= num_devices && ret == 1) {
 			strncpy(device->pci_address, found_devices[selected-1],
 					sizeof(device->pci_address) - NULL_PAD);
 			return 0;
@@ -495,7 +214,16 @@ int set_device(hw_device *device)
 	if (strcasecmp(device->device_name, "acc100") == 0) {
 		device->vendor_id = ACC100_VENDOR_ID;
 		device->device_id = ACC100_DEVICE_ID;
-		device->conf = acc100_configure;
+		device->ops.conf  = acc100_configure;
+		device->ops.device_data  = acc100_device_data;
+		device->bar_size = 0x1000000;
+
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
 
 		if (device->config_file == NULL) {
 			device->config_file =
@@ -504,10 +232,42 @@ int set_device(hw_device *device)
 		return 0;
 	}
 
+	if (strcasecmp(device->device_name, "acc200") == 0) {
+		device->vendor_id = ACC200_VENDOR_ID;
+		device->device_id = ACC200_DEVICE_ID;
+		device->ops.conf = acc200_configure;
+		device->ops.device_data  = acc200_device_data;
+		device->bar_size = 0x1000000;
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.flr = vfio_device_reset;
+			device->ops.cluster_reset = acc200_cluster_reset;
+			device->ops.enable_intr = vfio_enable_intr;
+			device->ops.disable_intr = vfio_disable_intr;
+			device->ops.dev_enable_intr = acc200_enable_intr;
+			device->ops.dev_disable_intr = acc200_disable_intr;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+			device->ops.dev_isr = acc200_irq_handler;
+			device->vfio_int_mode = VFIO_PCI_MSI_IRQ_INDEX;
+			device->auto_reconfig_on_fatal_error = 0;
+			device->device_reset_using_flr = DEVICE_RESET_USING_FLR;
+			device->info_ring_total_size = BB_ACC_INFO_RING_SIZE;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
+		if (device->config_file == NULL) {
+			device->config_file = "acc200/acc200_config.cfg";
+		}
+		return 0;
+	}
+
 	if (strcasecmp(device->device_name, "fpga_lte") == 0) {
 		device->vendor_id = FPGA_LTE_FEC_VENDOR_ID;
 		device->device_id = FPGA_LTE_FEC_DEVICE_ID;
-		device->conf = fpga_lte_configure;
+		device->ops.conf = fpga_lte_configure;
+		device->bar_size = 0x1000;
+		device->ops.get_bar0_addr = uio_get_bar0_mapping;
+
 		if (device->config_file == NULL) {
 			device->config_file = "fpga_lte/fpga_lte_config.cfg";
 		}
@@ -517,13 +277,17 @@ int set_device(hw_device *device)
 	if (strcasecmp(device->device_name, "fpga_5gnr") == 0) {
 		device->vendor_id = FPGA_5GNR_FEC_VENDOR_ID;
 		device->device_id = FPGA_5GNR_FEC_DEVICE_ID;
-		device->conf = fpga_5gnr_configure;
+		device->ops.conf = fpga_5gnr_configure;
+		device->bar_size = 0x1000;
+		device->ops.get_bar0_addr = uio_get_bar0_mapping;
+
 		if (device->config_file == NULL) {
 			device->config_file =
 					"fpga_5gnr/fpga_5gnr_config.cfg";
 		}
 		return 0;
 	}
+
 	return -1;
 }
 
@@ -568,10 +332,8 @@ bbdev_parse_args(int argc, char **argv,
 
 		case 'v':
 			device->vfio_mode = 1;
-			if (uuid_parse(optarg, device->vfio_vf_token) < 0) {
-				printf("UUID input: [%s]\n", optarg);
+			if (vfio_uuid_parse(optarg, device->vfio_vf_token) < 0)
 				return 1;
-			}
 			break;
 
 		case 'h':
@@ -583,80 +345,73 @@ bbdev_parse_args(int argc, char **argv,
 	return 0;
 }
 
-static void daemonize(void)
-{
-	pid_t pid, sid;
-
-	pid = fork();
-	if (pid < 0)
-		exit(EXIT_FAILURE);
-
-	/* exit the parent */
-	if (pid > 0)
-		exit(EXIT_SUCCESS);
-
-	umask(0);
-
-	/* do not let the child to become orphan */
-	sid = setsid();
-	if (sid < 0)
-		exit(EXIT_FAILURE);
-
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
-
-	/* a big infinite loop, kill the process to stop */
-	while (1)
-		sleep(SLEEP_30SEC);
-}
-
 static int
 configure_device(hw_device *device)
 {
-	unsigned int bar_size = 0x1000;
-	if (device->device_id == ACC100_DEVICE_ID)
-		bar_size = 0x1000000;
+
+	if ((device->ops.open) && (device->ops.open(device))) {
+		LOG(ERR, "device(%s) open failed", device->device_name);
+		return -1;
+	}
+
 	/* Get BAR0 Mapping for device */
-	void *bar0addr = get_bar0_mapping(device->pci_address, bar_size, device);
-	if (bar0addr == NULL)
+	if (device->ops.get_bar0_addr) {
+		device->bar0Addr = device->ops.get_bar0_addr(device->pci_address,
+				device->bar_size, device);
+		if (device->bar0Addr == NULL)
+			return -1;
+	} else
 		return -1;
 
 	/* Call device specific configuration function */
-	if (device->conf(bar0addr, device->config_file) == 0) {
-		printf("%s PF [%s] configuration complete!\n\n",
+	if (device->ops.conf(device, device->bar0Addr, device->config_file) == 0) {
+		LOG(INFO, "%s PF [%s] configuration complete!",
 				device->device_name, device->pci_address);
-		return 0;
+	} else {
+		LOG(ERR, "%s PF [%s] configuration failed!",
+				device->device_name, device->pci_address);
+		return -1;
 	}
 
-	printf("Configuration error!!\n");
-	return -1;
+	/* enable intr if supported, applicable only in case of vfio */
+	if ((device->ops.enable_intr) && (device->ops.enable_intr(device))) {
+		LOG(ERR, "Enable interrupts failed");
+		return -1;
+	}
+
+	bb_acc_set_all_device_status(device, RTE_BBDEV_DEV_CONFIGURED);
+
+	LOG(DEBUG, "Done");
+	return 0;
 }
 
 int
 main(int argc, char *argv[])
 {
-	int i, ret, num_devices;
+	int i, ret = 0, num_devices;
 	hw_device device;
 	char *found_devices[10];
-	printf("== pf_bb_config Version #VERSION_STRING# ==\n");
+	char logFile[BB_ACC_LOG_FILE_LEN];
 
 	memset(&device, 0, sizeof(device));
 
 	if (bbdev_parse_args(argc, argv, &device) > 0)
 		return 0;
 
+	event_init_fd();
+	printf("== pf_bb_config Version #VERSION_STRING# ==\n");
+
 	/* Set Device Info */
 	ret = set_device(&device);
 	if (ret != 0) {
-		printf("Device '%s' is not supported.\n", device.device_name);
+		printf("ERR: Device '%s' is not supported\n", device.device_name);
 		return 0;
 	}
 
 	/* Check if device is installed */
 	num_devices = probe_pci_bus(&device, found_devices);
 	if (num_devices == 0) {
-		printf("No devices found!!\n");
+		printf("ERR: No devices found!!\n");
 		return -1;
 	} else if (num_devices < 0) {
 		return num_devices;
@@ -676,6 +431,12 @@ main(int argc, char *argv[])
 		}
 	} else {
 		select_device(&device, found_devices, num_devices);
+		sprintf(logFile, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
+				device.pci_address);
+		if (bb_acc_logInit(logFile, BB_ACC_MAX_LOG_FILE_SIZE, INFO, device.vfio_mode)) {
+			printf("ERR: Logfile init failed\n");
+			return -1;
+		}
 		ret = configure_device(&device);
 	}
 
@@ -684,8 +445,9 @@ main(int argc, char *argv[])
 		free(found_devices[i]);
 
 	if (ret == 0 && device.vfio_mode) {
-		printf("Running in daemon mode for VFIO VF token\n");
-		daemonize();
+		LOG(INFO, "Running in daemon mode for VFIO VF token");
+		printf("Log file = /var/log/pf_bb_cfg_%s.log\n", device.pci_address);
+		daemonize(&device);
 	}
 
 	return ret;

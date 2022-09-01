@@ -174,7 +174,7 @@ print_static_reg_debug_info(void *mmio_base)
 }
 
 static int
-fpga_write_config(void *mapaddr, struct fpga_5gnr_fec_conf *conf)
+fpga_write_config(void *dev, void *mapaddr, struct fpga_5gnr_fec_conf *conf)
 {
 
 	uint32_t payload_32, address;
@@ -327,7 +327,7 @@ fpga_write_config(void *mapaddr, struct fpga_5gnr_fec_conf *conf)
 }
 
 int
-fpga_5gnr_configure(void *bar0addr, const char *cfg_filename)
+fpga_5gnr_configure(void *dev, void *bar0addr, const char *cfg_filename)
 {
 	struct fpga_5gnr_fec_conf fpga_conf;
 	int ret;
@@ -338,7 +338,7 @@ fpga_5gnr_configure(void *bar0addr, const char *cfg_filename)
 		return -1;
 	}
 
-	ret = fpga_write_config(bar0addr, &fpga_conf);
+	ret = fpga_write_config(dev, bar0addr, &fpga_conf);
 	if (ret != 0) {
 		printf("Error writing configuration for FPGA.\n");
 		return -1;
