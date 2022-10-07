@@ -8339,7 +8339,7 @@ acc200_reg_write(uint8_t *mmio_base, uint32_t offset, uint32_t payload)
 {
 	void *reg_addr = mmio_base + offset;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	value = __bswap_32(payload);
+	payload = __bswap_32(payload);
 #endif
 	*((volatile uint32_t *) (reg_addr)) = payload;
 	usleep(1000);
@@ -8350,7 +8350,7 @@ acc200_reg_fast_write(uint8_t *mmio_base, uint32_t offset, uint32_t payload)
 {
 	void *reg_addr = mmio_base + offset;
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	value = __bswap_32(payload);
+	payload = __bswap_32(payload);
 #endif
 	*((volatile uint32_t *) (reg_addr)) = payload;
 }
