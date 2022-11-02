@@ -59,7 +59,7 @@ disabled) or using the vfio-pci module (make sure that Intel® VT-d is enabled):
 Configure the devices using the pf_bb_config application for VF usage with both
 5G and 4G enabled:
 
-    ./pf_bb_config ACC100 -c acc100/acc100_config_2vf_4g5g.cfg
+    $dpdkPath/bbdev_pf_config_app/pf_bb_config ACC100 -c acc100/acc100_config_2vf_4g5g.cfg
 
 Test that the VF is functional on the device using bbdev-test:
 
@@ -67,7 +67,7 @@ Test that the VF is functional on the device using bbdev-test:
 
 From DPDK 20.11, the previous command must be updated as follows:
 
-    ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
+    $dpdkPath/build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
 
 Additional documentation can be found on DPDK for BBDEV usage
 (https://doc.dpdk.org/guides/prog_guide/bbdev.html)
@@ -87,7 +87,7 @@ Bind the PF with the vfio-pci module:
 Configure the device using the pf_bb_config application for VF usage with both
 5G and 4G enabled:
 
-    ./pf_bb_config ACC100 -v 00112233-4455-6677-8899-aabbccddeeff -c acc100/acc100_config_2vf_4g5g.cfg
+    $dpdkPath/bbdev_pf_config_app/pf_bb_config ACC100 -v 00112233-4455-6677-8899-aabbccddeeff -c acc100/acc100_config_2vf_4g5g.cfg
 
 Create 2 VFs from the PF using the exposed sysfs interface:
 
@@ -99,7 +99,7 @@ Bind both VFs using the vfio-pci module (make sure that Intel® VT-d is enabled)
 
 Test that the VF is functional on the device using bbdev-test:
 
-    ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} --vfio-vf-token=00112233-4455-6677-8899-aabbccddeeff -- -c validation -v ./ldpc_dec_default.data
+    $dpdkPath/build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} --vfio-vf-token=00112233-4455-6677-8899-aabbccddeeff -- -c validation -v ./ldpc_dec_default.data
 
 NOTE:
 
