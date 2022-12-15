@@ -25,49 +25,20 @@ The application requires the name of the BBDEV device to configure. Other
 arguments are optional.
 The application executes as follows:
 
-    ./pf_bb_config DEVICE_NAME [-h] [-a] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]
+    ./pf_bb_config DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]
 
-* `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100'
-* `-a`: Configures all PCI devices matching the given `DEVICE_NAME`
+* `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100' or 'ACC200'
 * `-h`: Prints help
 * `-c CFG_FILE`: Specifies configuration file to use
 * `-p PCI_ID`: Specifies PCI ID of device to configure
 * `-v VFIO_TOKEN` : `VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci
 
-## Example
+## Usage Example
 
 This section describes an example of configuring the ACC100 device so that the
 workload can be run from the Virtual Function (VF).
 Note the usage of DPDK and bbdev-test
 (https://doc.dpdk.org/guides/tools/testbbdev.html) for this example.
-The example in this section uses the igb_uio module and assumes that
-Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is disabled.
-
-Bind the PF with the igb_uio module (or alternatively with pci-pf-stub):
-
-    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $pfPciDeviceAddr
-
-Create 2 VFs from the PF using the exposed sysfs interface:
-
-    echo 2 | sudo tee /sys/bus/pci/devices/0000:$pfPciDeviceAddr/max_vfs
-
-Bind both VFs using either the igb_uio module (make sure that Intel® VT-d is
-disabled) or using the vfio-pci module (make sure that Intel® VT-d is enabled):
-
-    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
-
-Configure the devices using the pf_bb_config application for VF usage with both
-5G and 4G enabled:
-
-    ./pf_bb_config ACC100 -c acc100/acc100_config_2vf_4g5g.cfg
-
-Test that the VF is functional on the device using bbdev-test:
-
-    ../../${RTE_TARGET}/app/testbbdev -c F0 -w${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
-
-From DPDK 20.11, the previous command must be updated as follows:
-
-    ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
 
 Additional documentation can be found on DPDK for BBDEV usage
 (https://doc.dpdk.org/guides/prog_guide/bbdev.html)
@@ -76,9 +47,15 @@ and within Intel FlexRAN documentation on the Intel Resource & Design Center
 
 ### Using vfio-pci driver
 
-Load the vfio-pci driver with sriov capability enabled:
+The example in this section uses the vfio-pci module and assumes that
+Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is enabled.
+
+Load the vfio-pci driver with sriov capability enabled if not already loaded:
 
     modprobe vfio-pci enable_sriov=1 disable_idle_d3=1
+
+Or pass these parameters at boot up through the kernel cmdline
+(`vfio_pci.enable_sriov=1 vfio_pci.disable_idle_d3=1`)
 
 Bind the PF with the vfio-pci module:
 
@@ -118,20 +95,52 @@ NOTE:
     kill the existing pf_bb_config process using:
     pkill pf_bb_config
 
-## Notes on the IOMMU usage
+### Notes on the IOMMU usage
 
-Alternatively, the previous example can be run using the vfio-pci module to
-bind the VF with Intel® VT-d enabled in the kernel (`intel_iommu=on iommu=pt`)
-and in BIOS (as Intel® VT-d).
+To use vfio-pci module make sure to have Intel® VT-d enabled both in the kernel
+(`intel_iommu=on iommu=pt`) and in BIOS (as Intel® VT-d).
 Intel® VT-d is implemented in the Input-Output Memory Management Unit (IOMMU).
 To check that IOMMU is actually enabled at run time use the following command:
 
      dmesg | grep "DMAR: IOMMU"
 
 Additional information on vfio can be found on the related kernel documentation
-page (https://www.kernel.org/doc/Documentation/vfio.txt)
+page (https://www.kernel.org/doc/Documentation/vfio.txt).
+There is also valuable information regards linux drivers in the DPDK documentation
+https://doc.dpdk.org/guides/linux_gsg/linux_drivers.html
 
-## Details for ACC200 Configuration (SPR-EE)
+### Using igb_uio driver
+
+The example in this section uses the igb_uio module and assumes that
+Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is disabled.
+
+Bind the PF with the igb_uio module (or alternatively with pci-pf-stub):
+
+    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $pfPciDeviceAddr
+
+Create 2 VFs from the PF using the exposed sysfs interface:
+
+    echo 2 | sudo tee /sys/bus/pci/devices/0000:$pfPciDeviceAddr/max_vfs
+
+Bind both VFs using either the igb_uio module (make sure that Intel® VT-d is
+disabled) or using the vfio-pci module (make sure that Intel® VT-d is enabled):
+
+    $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
+
+Configure the devices using the pf_bb_config application for VF usage with both
+5G and 4G enabled:
+
+    ./pf_bb_config ACC100 -c acc100/acc100_config_2vf_4g5g.cfg
+
+Test that the VF is functional on the device using bbdev-test:
+
+    ../../${RTE_TARGET}/app/testbbdev -c F0 -w${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
+
+From DPDK 20.11, the previous command must be updated as follows:
+
+    ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
+
+## Details for ACC200 Configuration (Intel® vRAN Boost for 4th Gen Intel Xeon Scalable Processor)
 
 * A number of configuration file examples are available in the acc200 directory.
 These examples include the following parameters, which can be modified for a
@@ -162,7 +171,26 @@ There can be a maximum of 16 * 16 * 16 = 4K total queues.
 the configuration for 16 VFs in SRIOV mode with a total of 16 x 16 queues per VF covering
 all the possible processing engine functions.
 
-## Details for ACC100 Configuration
+## Error reporting and recovery (specific to ACC200)
+
+It is not expected for the accelerator to get into a bad state under any condition. Still
+the pf_bb_config supports the capability of detecting, reporting and recovering any
+potential fatal error forcing the device into a bad state.
+In the unlikely event case this would be happening the pf_bb_config log
+(/var/log/pf_bb_cfg_0000\:f7\:00.0.log) would include information related to such events as
+captured in the example log below.
+
+Example capturing error information and automatic recovery:
+Sat Dec  3 00:12:56 2022:ERR:HI Device Error: 0 5G_EXTRA_COMPLETION_RECVD
+Sat Dec  3 00:12:56 2022:ERR:Ext Device Error: 20 EXTRA_READ_STATUS_5G
+Sat Dec  3 00:12:56 2022:ERR:Fatal error
+Sat Dec  3 00:12:56 2022:INFO:Cluster reset and reconfig
+Sat Dec  3 00:12:57 2022:INFO:Queue Groups UL4G 2 DL4G 2 UL5G 4 DL5G 4 FFT 4
+Sat Dec  3 00:12:57 2022:INFO:Configuration in VF mode
+Sat Dec  3 00:12:58 2022:INFO:ACC200 configuration complete
+Sat Dec  3 00:12:58 2022:INFO:ACC200 PF [0000:f7:00.0] Reconfiguration complete!
+
+## Details for ACC100 Configuration (aka Mount Bryce)
 
 * A number of configuration file examples are available in the acc100 directory.
 These examples include the following parameters, which can be modified for a
@@ -197,7 +225,7 @@ There can be a maximum of 16 * 8 * 16 = 2048 total queues.
 `Note: Not on DDR PRQ version  1302020 != 10092020`.
 Intel recommends using the PRQ version of the ACC100 device.
 
-## Details for Intel® FPGA Programmable Acceleration Card N3000 Configuration
+## Details for Intel® FPGA Programmable Acceleration Card N3000 and N6000 Configuration
 
 * A number of configuration file examples are available in the `fpga_5gnr` and
 `fpga_lte` directories. These examples include the following parameters, which

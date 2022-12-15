@@ -213,10 +213,13 @@ unix_channel_srv_rx(int fd, struct cmdReq *req)
 	rc = recv(client_fd, req, sizeof(struct cmdReq), 0);
 	if (rc < 0) {
 		LOG(ERR, "cmd request recv() failed");
-		return 0;
+		close(client_fd);
+		return -1;
 	}
 
 	LOG(DEBUG, "Req id: %04x, len: %d", req->id, req->len);
+
+	close(client_fd);
 
 	return 0;
 }
@@ -364,6 +367,7 @@ event_processor(hw_device *dev)
 	char unix_channel_file[UNIX_CHANNEL_FILE_LEN];
 	char sysCmd[1024];
 	int r;
+
 	while (!is_sig_term_rcv) {
 
 		event_set_pfds();
@@ -379,13 +383,16 @@ event_processor(hw_device *dev)
 		event_process_fds();
 	}
 	if (is_sig_term_rcv == 1) {
+		LOG(INFO, "Exit event processor\n");
+		/* Remove the socket file */
 		memset(sysCmd, 0, sizeof(sysCmd));
 		sprintf(unix_channel_file, "%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
 		sprintf(sysCmd, "rm -fr %s", unix_channel_file);
 		r = system(sysCmd);
 		LOG(DEBUG, "system cmd returns = %d\n", r);
+		/* Close the log file */
+		bb_acc_logExit();
 	}
-
 }
 
 void
@@ -485,11 +492,17 @@ static int
 exit_app_exec(struct cmdDef *cmd, void *ci)
 {
 	struct cmdReq *cmd_req = (struct cmdReq *)ci;
+	hw_device *accel_dev = (hw_device *)cmd_req->priv;
+
+	/* disable interrupts */
+	if ((accel_dev->ops.disable_intr) &&
+			(accel_dev->ops.disable_intr(accel_dev))) {
+		LOG(ERR, "Disable interrupts failed");
+		return -1;
+	}
 
 	LOG(INFO, "exit_app command received");
-
-	exit_app_mode(cmd_req->priv);
-
+	sig_fun(0);
 	return 0;
 }
 
@@ -524,7 +537,7 @@ mem_read_exec(struct cmdDef *cmd, void *ci)
 	struct cmdReq *cmd_req = (struct cmdReq *)ci;
 	struct mm_read_req *mm_read = (struct mm_read_req *)CMD_REQ(ci);
 
-	LOG(INFO, "mm_read command reveived");
+	LOG(INFO, "mm_read command received");
 	LOG(DEBUG, "mm_read: reg_op_flag	= 0x%x\n", mm_read->reg_op_flag);
 	LOG(DEBUG, "mm_read: reg_rw_address	= 0x%x\n", mm_read->reg_rw_address);
 	LOG(DEBUG, "mm_read: write_payload	= 0x%x\n", mm_read->write_payload);
@@ -551,7 +564,7 @@ void sig_fun(int sig)
 {
 	uint8_t loopCnt = 0;
 	uint16_t fdCnt = eventFd.pollfd_count;
-	LOG(DEBUG, "Signal Received with sigNum = %u", sig);
+	LOG(INFO, "Signal Received with sigNum = %u", sig);
 	while (loopCnt < fdCnt) {
 		/* Close all the communications */
 		close(eventFd.fd[eventFd.pollfd_count]);

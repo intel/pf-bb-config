@@ -80,14 +80,13 @@
 #define ACC200_PG_MASK_4GUL     4
 #define ACC200_PG_MASK_5GUL     8
 #define ACC200_PROC_TIMEOUT     0x2000 /* 1ms */
+#define ACC200_ARAM_CONTROL     0x30
 
 #define ACC200_LUT_SIZE (16*(16+32+64+128+256+512+1024))
-
 #define ACC200_INFO_RING_NUM_ENTRIES 1024
-
 #define ACC200_PERMON_CTRL_REG_VF_OFFSET 256
-
 #define ACC200_FFT_FIRST_OFFSET  256
+#define ACC200_OCODE_REQ  0xFFFF0C0D
 
 /* Mask used to calculate an index in an Info Ring array (not a byte offset) */
 #define ACC200_INFO_RING_MASK          (ACC200_INFO_RING_NUM_ENTRIES-1)

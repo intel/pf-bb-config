@@ -59,6 +59,8 @@
 #define FPGA_LTE_FEC_DEVICE_ID  0x5052
 #define FPGA_5GNR_FEC_VENDOR_ID 0x8086
 #define FPGA_5GNR_FEC_DEVICE_ID 0x0D8F
+#define AGX100_VENDOR_ID        0x8086
+#define AGX100_DEVICE_ID        0x5799
 
 #define VFIO_VF_TOKEN_LEN 16
 #define VFIO_VF_TOKEN_STR_LEN 36
@@ -105,8 +107,8 @@ enum bb_acc_device_status {
  * Flags indicate the status of the device to the application
  */
 enum bb_acc_device_request {
-	REQ_DEV_STATUS,        /**< Request the device status report */
-	REQ_DEV_NEW,           /**< New VF device being used */
+	REQ_DEV_STATUS = 1,        /**< Request the device status report */
+	REQ_DEV_NEW = 2,           /**< New VF device being used */
 };
 
 /* Function pointers for bb dev operations */
@@ -133,7 +135,6 @@ typedef struct hw_device {
 	char pci_address[PCI_STR_SIZE];
 	bool driver_found;
 	struct bb_acc_operations ops;
-	int config_all;
 
 	void *info_ring;
 	uint64_t info_ring_phys_addr;
@@ -171,13 +172,10 @@ typedef struct hw_device {
 #define MAX_EVENTS (MAX_BB_ACC_DEV_COUNT + 1)
 
 #define DEVICE_RESET_USING_CLUSTER 0
-#define DEVICE_RESET_USING_FLR 1
-
-#define HAPS_FACTOR 100 /* FIXME: remove from Power on */
-
+#define DEVICE_RESET_USING_FLR     1
+#define DEVICE_RESET_AUTO_RECONFIG 1
 
 typedef	void (*cbFp_t)(int fd, void *data);
-
 
 extern void *vfio_dma_alloc(void *dev, size_t size, uint64_t *phy);
 extern void  vfio_dma_free(void *virt, size_t size);
@@ -197,6 +195,7 @@ extern void event_init_fd(void);
 
 extern int bb_acc_dev_reset_and_reconfig(void *accel_dev);
 extern int bb_acc_cluster_reset_and_reconfig(void *accel_dev);
+extern int bb_acc_cluster_reset_and_flr_reconfig(void *accel_dev);
 extern void bb_acc_set_all_device_status(void *dev, unsigned int status);
 extern const char *bb_acc_device_status_str(unsigned int status);
 
@@ -258,6 +257,7 @@ acc200_device_data(void *dev);
  */
 extern int fpga_lte_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
 extern int fpga_5gnr_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
+extern int agx100_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
 
 extern void sig_fun(int sig);
 #endif /* __BB_ACC_H__ */

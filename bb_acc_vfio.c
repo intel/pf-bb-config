@@ -165,7 +165,7 @@ static int vfio_enable_msi(hw_device *hwd)
 	*pfd = hwd->irq_event_fd;
 
 	if (ioctl(hwd->vfio_dev_fd, VFIO_DEVICE_SET_IRQS, irqs)) {
-		LOG(ERR, "ioctl VFIO_DEVICE_SET_IRQS error");
+		LOG(ERR, "ioctl VFIO_DEVICE_SET_IRQS error %d", errno);
 		close(hwd->irq_event_fd);
 		hwd->irq_event_fd = 0;
 		return -1;
@@ -610,6 +610,9 @@ void *vfio_get_bar0_mapping(const char *pci_addr,
 			return NULL;
 		}
 	}
+
+	/* Enable BME */
+	vfio_set_bus_master(hwd);
 
 	return map;
 }

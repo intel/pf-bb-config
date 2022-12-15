@@ -1,6 +1,15 @@
 pf_bb_config Release Note
 =========================
 
+22.11 new features and fixes
+* Formal support for Intel vRAN Boost (ACC200 on SPR-EE) accelerator management (still prePRQ)
+  including mitigations for known sightings as well as RAS improvements.
+* Removing the -a optional argument (all devices) which was not supported in practice.
+* Support for FPGA N6000 variant (AGX100)
+* Fix for handling negative scenario of mmap failure
+* Fix for big endian build
+* Fix for cli socket reliability
+
 22.07 new features and fixes
 ----------------------------
 * acc200: Support for ACC200 accelerator (SPR-EE)

@@ -161,6 +161,45 @@ bb_acc_cluster_reset_and_reconfig(void *dev)
 	return 0;
 }
 
+/* Do both a cluster reset then a PFLR. */
+int
+bb_acc_cluster_reset_and_flr_reconfig(void *dev)
+{
+	hw_device *accel_dev = (hw_device *)dev;
+
+	LOG(DEBUG, "Cluster reset and reconfig");
+
+	if (accel_dev == NULL)
+		return 0;
+
+	/* Disable interrupts. */
+	if ((accel_dev->ops.disable_intr) &&
+			(accel_dev->ops.disable_intr(accel_dev))) {
+		LOG(ERR, "Disable interrupts failed");
+		return -1;
+	}
+
+	/* Cluster reset first. */
+	if (accel_dev->ops.cluster_reset)
+		accel_dev->ops.cluster_reset(accel_dev);
+	else
+		LOG(ERR, "Cluster reset is not supported");
+
+	/* PF FLR. */
+	if ((accel_dev->ops.flr) &&
+			(accel_dev->ops.flr(accel_dev))) {
+		LOG(ERR, "Device reset failed");
+	}
+
+	/* Re-init and configure the device. */
+	if (bb_acc_reconfigure_device(accel_dev))
+		return -1;
+
+	LOG(DEBUG, "Done");
+	return 0;
+}
+
+
 void
 bb_acc_set_all_device_status(void *dev, unsigned int status)
 {
@@ -219,20 +258,6 @@ clear_log_file(void *dev)
 			accel_dev->pci_address);
 	LOG(INFO, "logFile = %s", logFile);
 	bb_acc_reset_logFile(logFile);
-}
-
-void
-exit_app_mode(void *dev)
-{
-	int r;
-	char sysCmd[1024];
-	memset(sysCmd, 0, sizeof(sysCmd));
-	/* Send kill signal to pf_bb_config */
-	r = system("pkill pf_bb_config");
-	if (!r)
-		LOG(INFO, "successfully kill pf_bb_config");
-	else
-		LOG(ERR, "pf_bb_config is not in running state");
 }
 
 int

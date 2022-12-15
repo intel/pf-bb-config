@@ -57,6 +57,10 @@ uio_get_bar0_mapping(const char *pci_addr,
 	map = mmap(0, bar_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			bar0addrfd, 0);
 	close(bar0addrfd);
+	if (map == MAP_FAILED) {
+		printf("ERR:SYSFS: mmap failed\n");
+		map = NULL; /* MAP_FAILED is not equal to NULL */
+	}
 	return map;
 }
 
@@ -169,14 +173,19 @@ probe_pci_bus(hw_device *device, char **found_devices)
 static int
 match_device(char *pci_address, char **found_devices, int num_devices)
 {
-	int i;
+	int i, null_prefix = 0;
+
+	/* Handle the case when the node prefix 0000: is not included */
+	if (strlen(pci_address) == 7)
+		null_prefix = 5;
+
 	for (i = 0; i < num_devices; i++) {
-		if (!strncmp(pci_address, found_devices[i],
+		if (!strncmp(pci_address, found_devices[i] + null_prefix,
 				sizeof(pci_address) - NULL_PAD))
 			return 0;
 	}
 
-	printf("ERR: Given PCI ID is not available");
+	printf("ERR: Given PCI ID is not available %s\n", pci_address);
 	return -1;
 }
 
@@ -249,8 +258,8 @@ int set_device(hw_device *device)
 			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
 			device->ops.dev_isr = acc200_irq_handler;
 			device->vfio_int_mode = VFIO_PCI_MSI_IRQ_INDEX;
-			device->auto_reconfig_on_fatal_error = 0;
-			device->device_reset_using_flr = DEVICE_RESET_USING_FLR;
+			device->auto_reconfig_on_fatal_error = DEVICE_RESET_AUTO_RECONFIG;
+			device->device_reset_using_flr = DEVICE_RESET_USING_CLUSTER;
 			device->info_ring_total_size = BB_ACC_INFO_RING_SIZE;
 		} else {
 			device->ops.get_bar0_addr = uio_get_bar0_mapping;
@@ -288,17 +297,35 @@ int set_device(hw_device *device)
 		return 0;
 	}
 
+	if (strcasecmp(device->device_name, "agx100") == 0) {
+		device->vendor_id = AGX100_VENDOR_ID;
+		device->device_id = AGX100_DEVICE_ID;
+		device->ops.conf = agx100_configure;
+		device->bar_size = 0x1000;
+
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
+
+		if (device->config_file == NULL) {
+			device->config_file =
+					"agx100/agx100_config_1vf.cfg";
+		}
+		return 0;
+	}
 	return -1;
 }
 
 static void
 print_helper(const char *prgname)
 {
-	printf("Usage: %s DEVICE_NAME [-h] [-a] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]\n\n"
+	printf("Usage: %s DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]\n\n"
 			" DEVICE_NAME \t specifies device to configure [FPGA_LTE or FPGA_5GNR or ACC100]\n"
 			" -c CFG_FILE \t specifies configuration file to use\n"
-			" -p PCI_ID \t specifies PCI ID of device to configure\n"
-			" -a \t\t configures all PCI devices matching the given DEVICE_NAME\n"
+			" -p PCI_ID \t specifies PCI ID of device to configure ([0000:]51:00.0)\n"
 			" -v VFIO_TOKEN \t VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci\n"
 			" -h \t\t prints this helper\n\n", prgname);
 }
@@ -315,7 +342,7 @@ bbdev_parse_args(int argc, char **argv,
 	}
 	device->device_name = argv[1];
 
-	while ((opt = getopt(argc, argv, "c:p:v:ah")) != -1) {
+	while ((opt = getopt(argc, argv, "c:p:v:h")) != -1) {
 		switch (opt) {
 		case 'c':
 			device->config_file = optarg;
@@ -324,10 +351,7 @@ bbdev_parse_args(int argc, char **argv,
 		case 'p':
 			strncpy(device->pci_address, optarg,
 					sizeof(device->pci_address) - NULL_PAD);
-			break;
-
-		case 'a':
-			device->config_all = 1;
+			device->pci_address[PCI_STR_SIZE - 1] = 0;
 			break;
 
 		case 'v':
@@ -423,22 +447,14 @@ main(int argc, char *argv[])
 			return -1;
 	}
 
-	if (device.config_all) {
-		for (i = 0; i < num_devices; i++) {
-			strncpy(device.pci_address, found_devices[i],
-					sizeof(device.pci_address) - NULL_PAD);
-			ret = configure_device(&device);
-		}
-	} else {
-		select_device(&device, found_devices, num_devices);
-		sprintf(logFile, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
-				device.pci_address);
-		if (bb_acc_logInit(logFile, BB_ACC_MAX_LOG_FILE_SIZE, INFO, device.vfio_mode)) {
-			printf("ERR: Logfile init failed\n");
-			return -1;
-		}
-		ret = configure_device(&device);
+	select_device(&device, found_devices, num_devices);
+	sprintf(logFile, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
+			device.pci_address);
+	if (bb_acc_logInit(logFile, BB_ACC_MAX_LOG_FILE_SIZE, INFO, device.vfio_mode)) {
+		printf("ERR: Logfile init failed\n");
+		return -1;
 	}
+	ret = configure_device(&device);
 
 	/* Free memory for stored PCI slots */
 	for (i = 0; i < num_devices; i++)
