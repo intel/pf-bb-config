@@ -167,6 +167,7 @@ probe_pci_bus(hw_device *device, char **found_devices)
 		}
 	}
 
+	closedir(dir);
 	return num_devices;
 }
 
