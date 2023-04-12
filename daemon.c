@@ -375,9 +375,9 @@ event_processor(hw_device *dev)
 		LOG(DEBUG, "Waiting on poll...");
 
 		/* Waits on list of events */
-		poll(eventFd.pfds, MAX_EVENTS, -1);
+		r = poll(eventFd.pfds, MAX_EVENTS, -1);
 
-		LOG(DEBUG, "poll() unblocked, check events");
+		LOG(DEBUG, "poll() unblocked, check events (return %d)", r);
 
 		/* process all events that are set */
 		event_process_fds();

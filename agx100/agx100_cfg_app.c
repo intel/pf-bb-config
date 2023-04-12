@@ -117,17 +117,20 @@ print_static_reg_debug_info(void *mmio_base)
 {
 	uint8_t i, q_id;
 	uint32_t fid;
-	uint32_t version_id = agx100_reg_read_32(mmio_base,
-			AGX100_VERSION_ID);
-	uint8_t qmap_done = agx100_reg_read_8(mmio_base,
-			AGX100_QUEUE_PF_VF_MAP_DONE);
-	uint16_t lb_factor = agx100_reg_read_16(mmio_base,
-			AGX100_LOAD_BALANCE_FACTOR);
-	uint16_t ring_desc_len = agx100_reg_read_16(mmio_base,
-			AGX100_RING_DESC_LEN);
+	uint32_t version_num_queues = agx100_reg_read_32(mmio_base, AGX100_VERSION_QUEUES_REG);
+	uint8_t major_version_id = version_num_queues >> 16;
+	uint8_t minor_version_id = version_num_queues >> 8;
+	uint8_t patch_id = version_num_queues;
+	uint8_t qmap_done = agx100_reg_read_8(mmio_base, AGX100_QUEUE_PF_VF_MAP_DONE);
+	uint16_t lb_factor = agx100_reg_read_16(mmio_base, AGX100_LOAD_BALANCE_FACTOR);
+	uint16_t ring_desc_len = agx100_reg_read_16(mmio_base, AGX100_RING_DESC_LEN);
 
-	printf("AGX100 RTL v%u.%u\n",
-		((uint16_t)(version_id >> 16)), ((uint16_t)version_id));
+	/* Maximum number of queues on device */
+	uint8_t total_num_queues = version_num_queues >> 24;
+	uint8_t num_ul_queues = total_num_queues >> 1;
+
+	printf("AGX100 RTL v%u.%u.%u\n", major_version_id, minor_version_id, patch_id);
+	printf("Max number of Queues = %u\n", total_num_queues);
 	printf("UL.DL Load Balance = %u.%u\n",
 			((uint8_t)lb_factor), ((uint8_t)(lb_factor >> 8)));
 	printf("Queue-PF/VF Mapping Table = %s\n",
@@ -139,10 +142,10 @@ print_static_reg_debug_info(void *mmio_base)
 	printf("        |  PF | VF0 | VF1 | VF2 | VF3 | VF4 | VF5 | VF6 | VF7 |\n");
 	printf("--------+-----+-----+-----+-----+-----+-----+-----+-----+-----+\n");
 
-	for (q_id = 0; q_id < AGX100_TOTAL_NUM_QUEUES; q_id++) {
+	for (q_id = 0; q_id < total_num_queues; q_id++) {
 
 		printf("%s-Q'%02u |",
-			(q_id < AGX100_NUM_UL_QUEUES) ? "UL" : "DL", q_id);
+			(q_id < num_ul_queues) ? "UL" : "DL", q_id);
 
 		fid = agx100_reg_read_32(mmio_base,
 				AGX100_QUEUE_MAP + (q_id << 2));
@@ -174,10 +177,14 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 	uint16_t q_id, vf_id, total_q_id, total_ul_q_id, total_dl_q_id;
 
 	uint32_t *bar0addr = mapaddr;
+	/* Maximum number of queues on device */
+	uint8_t total_num_queues = agx100_reg_read_32(bar0addr, AGX100_VERSION_QUEUES_REG) >> 24;
+	uint8_t num_ul_queues = total_num_queues >> 1;
+	uint8_t num_dl_queues = total_num_queues >> 1;
 
 	/* Clear all queues registers */
 	payload_32 = AGX100_INVALID_HW_QUEUE_ID;
-	for (q_id = 0; q_id < AGX100_TOTAL_NUM_QUEUES; ++q_id) {
+	for (q_id = 0; q_id < total_num_queues; ++q_id) {
 		address = (q_id << 2) + AGX100_QUEUE_MAP;
 		agx100_reg_write_32(bar0addr, address, payload_32);
 	}
@@ -186,8 +193,7 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 	 * If PF mode is enabled allocate all queues for PF only.
 	 *
 	 * For VF mode each VF can have different number of UL and DL queues.
-	 * Total number of queues to configure cannot exceed FPGA
-	 * capabilities - 64 queues - 32 queues for UL and 32 queues for DL.
+	 * Total number of queues to configure cannot exceed AGX100 capabilities.
 	 * Queues mapping is done according to configuration:
 	 *
 	 * UL queues:
@@ -238,7 +244,7 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 	 */
 	if (conf->pf_mode_en) {
 		payload_32 = 0x1;
-		for (q_id = 0; q_id < AGX100_TOTAL_NUM_QUEUES; ++q_id) {
+		for (q_id = 0; q_id < total_num_queues; ++q_id) {
 			address = (q_id << 2) + AGX100_QUEUE_MAP;
 			agx100_reg_write_32(bar0addr, address, payload_32);
 		}
@@ -252,15 +258,15 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 		total_q_id = total_dl_q_id + total_ul_q_id;
 		/*
 		 * Check if total number of queues to configure does not exceed
-		 * FPGA capabilities (64 queues - 32 UL and 32 DL queues)
+		 * AGX100 capabilities
 		 */
-		if ((total_ul_q_id > AGX100_NUM_UL_QUEUES) ||
-			(total_dl_q_id > AGX100_NUM_DL_QUEUES) ||
-			(total_q_id > AGX100_TOTAL_NUM_QUEUES)) {
+		if ((total_ul_q_id > num_ul_queues) ||
+			(total_dl_q_id > num_dl_queues) ||
+			(total_q_id > total_num_queues)) {
 			printf(
-					"FPGA Configuration failed. Too many queues to configure: UL_Q %u, DL_Q %u, AGX100_Q %u",
+					"AGX100 Configuration failed. Too many queues to configure: UL_Q %u, DL_Q %u, AGX100_Q %u",
 					total_ul_q_id, total_dl_q_id,
-					AGX100_TOTAL_NUM_QUEUES);
+					total_num_queues);
 			return -EINVAL;
 		}
 		total_ul_q_id = 0;
@@ -278,7 +284,7 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 		for (vf_id = 0; vf_id < AGX100_NUM_VFS; ++vf_id) {
 			for (q_id = 0; q_id < conf->vf_dl_queues_number[vf_id];
 					++q_id, ++total_dl_q_id) {
-				address = ((total_dl_q_id + AGX100_NUM_UL_QUEUES)
+				address = ((total_dl_q_id + num_ul_queues)
 						<< 2) + AGX100_QUEUE_MAP;
 				payload_32 = ((0x80 + vf_id) << 16) | 0x1;
 				agx100_reg_write_32(bar0addr, address,
@@ -310,7 +316,7 @@ agx100_write_config(void *dev, void *mapaddr, struct agx100_conf *conf)
 }
 
 int
-agx100_configure(void *dev, void *bar0addr, const char *cfg_filename)
+agx100_configure(void *dev, void *bar0addr, const char *cfg_filename, const bool first_cfg)
 {
 	struct agx100_conf agx100_conf;
 	int ret;
@@ -323,7 +329,7 @@ agx100_configure(void *dev, void *bar0addr, const char *cfg_filename)
 
 	ret = agx100_write_config(dev, bar0addr, &agx100_conf);
 	if (ret != 0) {
-		printf("Error writing configuration for FPGA.\n");
+		printf("Error writing configuration for AGX100.\n");
 		return -1;
 	}
 

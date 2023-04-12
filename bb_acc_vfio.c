@@ -318,7 +318,7 @@ static int vfio_get_device_groupid(const char *pci_addr)
 
 	snprintf(device_iommu_group, sizeof(device_iommu_group),
 			"%s/%s/iommu_group", SYS_DIR, pci_addr);
-	len = readlink(device_iommu_group, group_path, sizeof(group_path));
+	len = readlink(device_iommu_group, group_path, sizeof(group_path) - 1);
 	if (len < 0) {
 		LOG(ERR, "VFIO: iommu_group error for %s", pci_addr);
 		return -1;

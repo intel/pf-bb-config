@@ -116,13 +116,15 @@ parse_number32(const char *str, uint32_t *value)
 static int
 parse_item_no(const char *full_name, const char *base_name)
 {
-	int postfix_len, number_start;
+	int postfix_len, number_start, ret;
 	uint16_t item_no = 0;
 
 	postfix_len = strlen(full_name) - strlen(base_name);
 	if (postfix_len > 0) {
 		number_start = strlen((const char *) base_name);
-		parse_number16(&full_name[number_start], &item_no);
+		ret = parse_number16(&full_name[number_start], &item_no);
+		if (ret != 1)
+			printf("ERROR: Parsing item (%d) failed (%d)\n", item_no, ret);
 	}
 
 	return item_no;

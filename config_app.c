@@ -167,6 +167,8 @@ probe_pci_bus(hw_device *device, char **found_devices)
 		}
 	}
 
+	closedir(dir);
+
 	return num_devices;
 }
 
@@ -241,22 +243,23 @@ int set_device(hw_device *device)
 		return 0;
 	}
 
-	if (strcasecmp(device->device_name, "acc200") == 0) {
-		device->vendor_id = ACC200_VENDOR_ID;
-		device->device_id = ACC200_DEVICE_ID;
-		device->ops.conf = acc200_configure;
-		device->ops.device_data  = acc200_device_data;
+	if ((strcasecmp(device->device_name, "acc200") == 0) ||
+			(strcasecmp(device->device_name, "vrb1") == 0)) {
+		device->vendor_id = VRB1_VENDOR_ID;
+		device->device_id = VRB1_DEVICE_ID;
+		device->ops.conf = vrb1_configure;
+		device->ops.device_data  = vrb1_device_data;
 		device->bar_size = 0x1000000;
 		if (device->vfio_mode) {
 			device->ops.open = vfio_device_open;
 			device->ops.flr = vfio_device_reset;
-			device->ops.cluster_reset = acc200_cluster_reset;
+			device->ops.cluster_reset = vrb1_cluster_reset;
 			device->ops.enable_intr = vfio_enable_intr;
 			device->ops.disable_intr = vfio_disable_intr;
-			device->ops.dev_enable_intr = acc200_enable_intr;
-			device->ops.dev_disable_intr = acc200_disable_intr;
+			device->ops.dev_enable_intr = vrb1_enable_intr;
+			device->ops.dev_disable_intr = vrb1_disable_intr;
 			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
-			device->ops.dev_isr = acc200_irq_handler;
+			device->ops.dev_isr = vrb1_irq_handler;
 			device->vfio_int_mode = VFIO_PCI_MSI_IRQ_INDEX;
 			device->auto_reconfig_on_fatal_error = DEVICE_RESET_AUTO_RECONFIG;
 			device->device_reset_using_flr = DEVICE_RESET_USING_CLUSTER;
@@ -265,7 +268,7 @@ int set_device(hw_device *device)
 			device->ops.get_bar0_addr = uio_get_bar0_mapping;
 		}
 		if (device->config_file == NULL) {
-			device->config_file = "acc200/acc200_config.cfg";
+			device->config_file = "vrb1/vrb1_config.cfg";
 		}
 		return 0;
 	}
@@ -288,7 +291,13 @@ int set_device(hw_device *device)
 		device->device_id = FPGA_5GNR_FEC_DEVICE_ID;
 		device->ops.conf = fpga_5gnr_configure;
 		device->bar_size = 0x1000;
-		device->ops.get_bar0_addr = uio_get_bar0_mapping;
+
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
 
 		if (device->config_file == NULL) {
 			device->config_file =
@@ -388,7 +397,8 @@ configure_device(hw_device *device)
 		return -1;
 
 	/* Call device specific configuration function */
-	if (device->ops.conf(device, device->bar0Addr, device->config_file) == 0) {
+	if (device->ops.conf(device, device->bar0Addr, device->config_file,
+			BB_ACC_FIRST_CFG) == 0) {
 		LOG(INFO, "%s PF [%s] configuration complete!",
 				device->device_name, device->pci_address);
 	} else {

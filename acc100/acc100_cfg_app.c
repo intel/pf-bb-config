@@ -175,8 +175,8 @@ aqDepth(int qg_idx, struct acc100_conf *acc100_conf)
 	int acc_enum = accFromQgid(qg_idx, acc100_conf);
 	qtopFromAcc(&q_top, acc_enum, acc100_conf);
 	if (q_top == NULL)
-		return 0;
-	return q_top->aq_depth_log2;
+		return 1;
+	return MAX(1, q_top->aq_depth_log2);
 }
 
 /* Return the AQ depth for a Queue Group Index */
@@ -790,7 +790,7 @@ acc100_write_config(void *dev, void *mapaddr, struct acc100_conf *acc100_conf)
 }
 
 int
-acc100_configure(void *dev, void *bar0addr, const char *cfg_filename)
+acc100_configure(void *dev, void *bar0addr, const char *cfg_filename, const bool first_cfg)
 {
 	struct acc100_conf acc100_conf;
 	int ret;

@@ -53,8 +53,8 @@
 
 #define ACC100_VENDOR_ID        0x8086
 #define ACC100_DEVICE_ID        0x0D5C
-#define ACC200_VENDOR_ID        0x8086
-#define ACC200_DEVICE_ID        0x57C0
+#define VRB1_VENDOR_ID          0x8086
+#define VRB1_DEVICE_ID          0x57C0
 #define FPGA_LTE_FEC_VENDOR_ID  0x1172
 #define FPGA_LTE_FEC_DEVICE_ID  0x5052
 #define FPGA_5GNR_FEC_VENDOR_ID 0x8086
@@ -88,6 +88,11 @@
 #define BB_ACC_INFO_RING_PTR_MASK       ((BB_ACC_INFO_RING_NUM_ENTRIES * 4) - 1)
 #define BB_ACC_INFO_RING_SIZE           (BB_ACC_INFO_RING_NUM_ENTRIES * sizeof(uint32_t))
 
+#define BB_ACC_FIRST_CFG true
+#define BB_ACC_RECFG     false
+
+#define MAX(x, y) ((x) >= (y) ? (x) : (y))
+
 /**
  * Flags indicate the status of the device to the application
  */
@@ -114,7 +119,7 @@ enum bb_acc_device_request {
 /* Function pointers for bb dev operations */
 struct bb_acc_operations {
 	int   (*open)(void *dev);
-	int   (*conf)(void *dev, void *bar0addr, const char *arg_cfg_filename);
+	int   (*conf)(void *dev, void *bar0addr, const char *arg_cfg_filename, bool firstConfig);
 	int   (*enable_intr)(void *dev);
 	int   (*disable_intr)(void *dev);
 	int   (*dev_enable_intr)(void *dev);
@@ -224,40 +229,43 @@ print_all_stat32(hw_device *accel_dev, uint32_t address, int num, int reg_offset
  * Configure ACC100
  */
 extern int
-acc100_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
+acc100_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
 
 extern void
 acc100_device_data(void *dev);
 
 /*
- * Configure ACC200
+ * Configure VRB1
  */
 extern int
-acc200_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
+vrb1_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
 
 extern int
-acc200_enable_intr(void *);
+vrb1_enable_intr(void *);
 
 extern int
-acc200_disable_intr(void *);
+vrb1_disable_intr(void *);
 
 extern int
-acc200_irq_handler(void *dev);
+vrb1_irq_handler(void *dev);
 
 extern void
-acc200_cluster_reset(void *dev);
+vrb1_cluster_reset(void *dev);
 
-extern int acc200_get_info_ring_size(void);
+extern int vrb1_get_info_ring_size(void);
 
 extern void
-acc200_device_data(void *dev);
+vrb1_device_data(void *dev);
 
 /*
  * Configure FPGA
  */
-extern int fpga_lte_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
-extern int fpga_5gnr_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
-extern int agx100_configure(void *dev, void *bar0addr, const char *arg_cfg_filename);
+extern int
+fpga_lte_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
+extern int
+fpga_5gnr_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
+extern int
+agx100_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
 
 extern void sig_fun(int sig);
 #endif /* __BB_ACC_H__ */

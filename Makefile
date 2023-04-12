@@ -21,13 +21,13 @@ CFLAGS=-Wall -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -z relro -z now 
 ODIR=build
 DEPS=
 
-INCLUDE=-I. -I./acc100 -I./acc200 -I./fpga_lte -I./fpga_5gnr -I./agx100 -I./cfg_reader
+INCLUDE=-I. -I./acc100 -I./vrb1 -I./fpga_lte -I./fpga_5gnr -I./agx100 -I./cfg_reader
 LDFLAGS=-L.
 
 SRC = config_app.c acc100/acc100_cfg_app.c acc100/acc100_cfg_parser.c \
 	fpga_lte/fpga_lte_cfg_app.c fpga_lte/fpga_lte_cfg_parser.c \
 	fpga_5gnr/fpga_5gnr_cfg_app.c fpga_5gnr/fpga_5gnr_cfg_parser.c \
-	acc200/acc200_cfg_app.c acc200/acc200_cfg_parser.c cfg_reader/cfg_reader.c \
+	vrb1/vrb1_cfg_app.c vrb1/vrb1_cfg_parser.c cfg_reader/cfg_reader.c \
 	agx100/agx100_cfg_app.c agx100/agx100_cfg_parser.c \
 	bb_acc_vfio.c daemon.c bb_acc_log.c bb_acc_common.c
 OBJ = $(patsubst %.c,$(ODIR)/%.o,$(SRC))

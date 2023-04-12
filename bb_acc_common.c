@@ -81,7 +81,8 @@ bb_acc_reconfigure_device(hw_device *accel_dev)
 {
 
 	/* Call device specific configuration function */
-	if (accel_dev->ops.conf(accel_dev, accel_dev->bar0Addr, accel_dev->config_file)) {
+	if (accel_dev->ops.conf(accel_dev, accel_dev->bar0Addr, accel_dev->config_file,
+			BB_ACC_RECFG)) {
 		LOG(ERR, "Reconfiguration failed");
 		return -1;
 	}
@@ -278,8 +279,8 @@ acc100_reg_dump(hw_device *accel_dev,
 }
 
 int
-acc200_reg_dump(hw_device *accel_dev,
-		struct acc200_reg_dump_info *rd_db,
+vrb1_reg_dump(hw_device *accel_dev,
+		struct vrb1_reg_dump_info *rd_db,
 		int num_regs)
 {
 	int i = 0;
@@ -307,9 +308,9 @@ int acc_reg_dump(void *dev, int devType)
 	if (devType == ACC100_DEVICE_ID) {
 		num = sizeof(acc100_rd_db) / sizeof(struct acc100_reg_dump_info);
 		acc100_reg_dump(device, acc100_rd_db, num);
-	} else if (devType == ACC200_DEVICE_ID) {
-		num = sizeof(acc200_rd_db) / sizeof(struct acc200_reg_dump_info);
-		acc200_reg_dump(device, acc200_rd_db, num);
+	} else if (devType == VRB1_DEVICE_ID) {
+		num = sizeof(vrb1_rd_db) / sizeof(struct vrb1_reg_dump_info);
+		vrb1_reg_dump(device, vrb1_rd_db, num);
 	} else
 		printf("ERR: Wrong Device !!!\n");
 
@@ -322,6 +323,18 @@ int acc_mem_read(void *dev, int rwFlag, int regAddr, int wPayload)
 	uint32_t payload = 0x0;
 	LOG(DEBUG, "rwFlag = %d, regAddr = 0x%x, wPayload = 0x%x\n",
 			rwFlag, regAddr, wPayload);
+	/* Protection specific to VRB registers. */
+	if (device->device_id == VRB1_DEVICE_ID) {
+		if ((regAddr >= 0xA01000) && (regAddr < 0xA02000)) {
+			LOG(ERR, "Invalid Address for VRB1 0x%x\n", regAddr);
+			return 0;
+		}
+		if ((regAddr >= 0x818000) && (regAddr < 0x820000)) {
+			LOG(ERR, "Invalid ARAM Address for VRB1 0x%x\n", regAddr);
+			return 0;
+		}
+	}
+
 	switch (rwFlag) {
 	default:
 	case MM_READ_REG_READ:
@@ -366,7 +379,7 @@ void acc_device_data(void *dev)
 
 	if (device->device_id == ACC100_DEVICE_ID)
 		acc100_device_data(device);
-	else if (device->device_id == ACC200_DEVICE_ID)
-		acc200_device_data(device);
+	else if (device->device_id == VRB1_DEVICE_ID)
+		vrb1_device_data(device);
 }
 

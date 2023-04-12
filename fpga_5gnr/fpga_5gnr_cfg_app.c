@@ -327,7 +327,7 @@ fpga_write_config(void *dev, void *mapaddr, struct fpga_5gnr_fec_conf *conf)
 }
 
 int
-fpga_5gnr_configure(void *dev, void *bar0addr, const char *cfg_filename)
+fpga_5gnr_configure(void *dev, void *bar0addr, const char *cfg_filename, const bool first_cfg)
 {
 	struct fpga_5gnr_fec_conf fpga_conf;
 	int ret;

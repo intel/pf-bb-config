@@ -27,7 +27,7 @@ struct acc100_reg_dump_info {
 	uint32_t reg_offset;
 };
 
-struct acc200_reg_dump_info {
+struct vrb1_reg_dump_info {
 	char *reg_name;
 	uint32_t reg_offset;
 };
@@ -814,8 +814,8 @@ struct acc100_reg_dump_info acc100_rd_db[] = {
 	{"pcie_gpex_pab_ob_size_control_vc0                       ", 0x00D9C310},
 };
 
-/* ACC200 register */
-struct acc200_reg_dump_info acc200_rd_db[] = {
+/* VRB1 register */
+struct vrb1_reg_dump_info vrb1_rd_db[] = {
 	{"qmgr_egress_queues_template                             ", 0x0007FC00},
 	{"qmgr_ingress_aq                                         ", 0x00080000},
 	{"aram_control_status                                     ", 0x00810000},
@@ -848,7 +848,6 @@ struct acc200_reg_dump_info acc200_rd_db[] = {
 	{"qmgr_grp_tmplate_reg2_indx                              ", 0x00A00800},
 	{"qmgr_grp_tmplate_reg3_indx                              ", 0x00A00900},
 	{"qmgr_grp_tmplate_reg4_indx                              ", 0x00A00A00},
-	{"qmgr_vf_base_addr                                       ", 0x00A01000},
 	{"qmgr_ul4g_weight_rr_vf                                  ", 0x00A02000},
 	{"qmgr_dl4g_weight_rr_vf                                  ", 0x00A02100},
 	{"qmgr_ul5g_weight_rr_vf                                  ", 0x00A02200},
@@ -1317,7 +1316,7 @@ struct acc200_reg_dump_info acc200_rd_db[] = {
 };
 
 extern int acc100_reg_dump(hw_device *accel_dev, struct acc100_reg_dump_info *rd_db, int num_regs);
-extern int acc200_reg_dump(hw_device *accel_dev, struct acc200_reg_dump_info *rd_db, int num_regs);
+extern int vrb1_reg_dump(hw_device *accel_dev, struct vrb1_reg_dump_info *rd_db, int num_regs);
 
 #endif /* __BB_ACC_REG_DUMP_H__ */
 

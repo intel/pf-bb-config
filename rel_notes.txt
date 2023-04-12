@@ -1,8 +1,22 @@
 pf_bb_config Release Note
 =========================
 
+23.03 new features and fixes
+* Intel vRAN Boost v1 (SPR-EE PRQ) specific changes :
+ * Code refactor for refreshed product branding: ACC200 -> VRB1. Backward compatible usage.
+ * Protection for MMIO Read interface to bar access to specific register range.
+ * Explicit reset of SRAM to avoid risk of parity error false alarm.
+ * Set explictly dynamic clock gating after reconfiguration.
+ * Improvement to FFT memory loading after reconfiguration.
+ * Improvement to the speed for reconfiguration after reset.
+ * Extension of telemetry related to DMA latency measurements.
+* Fix for minor coverity warnings.
+* Fix minor leak with opened sysfs directory.
+* Support for vfio-pci kernel module with N3000.
+* Support for flexible number of queues with N6000.
+
 22.11 new features and fixes
-* Formal support for Intel vRAN Boost (ACC200 on SPR-EE) accelerator management (still prePRQ)
+* Improvement for ACC200 accelerator management (still prePRQ)
   including mitigations for known sightings as well as RAS improvements.
 * Removing the -a optional argument (all devices) which was not supported in practice.
 * Support for FPGA N6000 variant (AGX100)
@@ -12,7 +26,7 @@ pf_bb_config Release Note
 
 22.07 new features and fixes
 ----------------------------
-* acc200: Support for ACC200 accelerator (SPR-EE)
+* acc200: Support for ACC200 accelerator (SPR-EE Early Access)
 * pf_bb_config: Support for CLI interface and telemetry
 * pf_bb_config: Update to Makefile for stronger security check
 * acc100: update of the PCIe adaptation for improved PCIe BER performance

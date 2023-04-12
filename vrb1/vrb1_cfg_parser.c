@@ -24,8 +24,8 @@
 #include <errno.h>
 
 #include "cfg_reader.h"
-#include "acc200_cfg_app.h"
-#include "acc200_pf_enum.h"
+#include "vrb1_cfg_app.h"
+#include "vrb1_pf_enum.h"
 
 /* Names of sections used in the configuration file */
 #define MODE "MODE"
@@ -122,13 +122,15 @@ parse_number32(const char *str, uint32_t *value)
 static int
 parse_item_no(const char *full_name, const char *base_name)
 {
-	int postfix_len, number_start;
+	int postfix_len, number_start, ret;
 	uint16_t item_no = 0;
 
 	postfix_len = strlen(full_name) - strlen(base_name);
 	if (postfix_len > 0) {
 		number_start = strlen((const char *) base_name);
-		parse_number16(&full_name[number_start], &item_no);
+		ret = parse_number16(&full_name[number_start], &item_no);
+		if (ret != 1)
+			printf("ERROR: Parsing item (%d) failed (%d)\n", item_no, ret);
 	}
 
 	return item_no;
@@ -136,208 +138,208 @@ parse_item_no(const char *full_name, const char *base_name)
 
 /* Set the default config for the device (if no other config file is given) */
 static void
-set_default_config(struct acc200_conf *acc200_conf)
+set_default_config(struct vrb1_conf *vrb1_conf)
 {
 	int x;
 
-	acc200_conf->num_vf_bundles = NUM_OF_BUNDLES;
-	acc200_conf->pf_mode_en = DEFAULT_PF_MODE_EN;
+	vrb1_conf->num_vf_bundles = NUM_OF_BUNDLES;
+	vrb1_conf->pf_mode_en = DEFAULT_PF_MODE_EN;
 
-	acc200_conf->q_dl_4g.num_qgroups = QDL_NUM_QGROUPS;
-	acc200_conf->q_dl_4g.num_aqs_per_groups = QDL_NUM_AQS_PER_GROUPS;
-	acc200_conf->q_dl_4g.aq_depth_log2 = QDL_AQ_DEPTH_LOG2;
-	acc200_conf->q_ul_4g.num_qgroups = QUL_NUM_QGROUPS;
-	acc200_conf->q_ul_4g.num_aqs_per_groups = QUL_NUM_AQS_PER_GROUPS;
-	acc200_conf->q_ul_4g.aq_depth_log2 = QUL_AQ_DEPTH_LOG2;
-	acc200_conf->q_dl_5g.num_qgroups = QDL_NUM_QGROUPS;
-	acc200_conf->q_dl_5g.num_aqs_per_groups = QDL_NUM_AQS_PER_GROUPS;
-	acc200_conf->q_dl_5g.aq_depth_log2 = QDL_AQ_DEPTH_LOG2;
-	acc200_conf->q_ul_5g.num_qgroups = QUL_NUM_QGROUPS;
-	acc200_conf->q_ul_5g.num_aqs_per_groups = QUL_NUM_AQS_PER_GROUPS;
-	acc200_conf->q_ul_5g.aq_depth_log2 = QUL_AQ_DEPTH_LOG2;
-	acc200_conf->q_fft.num_qgroups = QFFT_NUM_QGROUPS;
-	acc200_conf->q_fft.num_aqs_per_groups = QFFT_NUM_AQS_PER_GROUPS;
-	acc200_conf->q_fft.aq_depth_log2 = QFFT_AQ_DEPTH_LOG2;
+	vrb1_conf->q_dl_4g.num_qgroups = QDL_NUM_QGROUPS;
+	vrb1_conf->q_dl_4g.num_aqs_per_groups = QDL_NUM_AQS_PER_GROUPS;
+	vrb1_conf->q_dl_4g.aq_depth_log2 = QDL_AQ_DEPTH_LOG2;
+	vrb1_conf->q_ul_4g.num_qgroups = QUL_NUM_QGROUPS;
+	vrb1_conf->q_ul_4g.num_aqs_per_groups = QUL_NUM_AQS_PER_GROUPS;
+	vrb1_conf->q_ul_4g.aq_depth_log2 = QUL_AQ_DEPTH_LOG2;
+	vrb1_conf->q_dl_5g.num_qgroups = QDL_NUM_QGROUPS;
+	vrb1_conf->q_dl_5g.num_aqs_per_groups = QDL_NUM_AQS_PER_GROUPS;
+	vrb1_conf->q_dl_5g.aq_depth_log2 = QDL_AQ_DEPTH_LOG2;
+	vrb1_conf->q_ul_5g.num_qgroups = QUL_NUM_QGROUPS;
+	vrb1_conf->q_ul_5g.num_aqs_per_groups = QUL_NUM_AQS_PER_GROUPS;
+	vrb1_conf->q_ul_5g.aq_depth_log2 = QUL_AQ_DEPTH_LOG2;
+	vrb1_conf->q_fft.num_qgroups = QFFT_NUM_QGROUPS;
+	vrb1_conf->q_fft.num_aqs_per_groups = QFFT_NUM_AQS_PER_GROUPS;
+	vrb1_conf->q_fft.aq_depth_log2 = QFFT_AQ_DEPTH_LOG2;
 
-	for (x = 0; x < ACC200_NUM_VFS; x++) {
-		acc200_conf->arb_dl_4g[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
-		acc200_conf->arb_dl_4g[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
-		acc200_conf->arb_dl_4g[x].round_robin_weight =
+	for (x = 0; x < VRB1_NUM_VFS; x++) {
+		vrb1_conf->arb_dl_4g[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
+		vrb1_conf->arb_dl_4g[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
+		vrb1_conf->arb_dl_4g[x].round_robin_weight =
 				ARBDL_ROUND_ROBIN_WEIGHT;
 	}
-	for (x = 0; x < ACC200_NUM_VFS; x++) {
-		acc200_conf->arb_ul_4g[x].gbr_threshold1 = ARBUL_GBR_THRSH1;
-		acc200_conf->arb_ul_4g[x].gbr_threshold2 = ARBUL_GBR_THRSH2;
-		acc200_conf->arb_ul_4g[x].round_robin_weight =
+	for (x = 0; x < VRB1_NUM_VFS; x++) {
+		vrb1_conf->arb_ul_4g[x].gbr_threshold1 = ARBUL_GBR_THRSH1;
+		vrb1_conf->arb_ul_4g[x].gbr_threshold2 = ARBUL_GBR_THRSH2;
+		vrb1_conf->arb_ul_4g[x].round_robin_weight =
 				ARBUL_ROUND_ROBIN_WEIGHT;
 	}
-	for (x = 0; x < ACC200_NUM_VFS; x++) {
-		acc200_conf->arb_dl_5g[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
-		acc200_conf->arb_dl_5g[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
-		acc200_conf->arb_dl_5g[x].round_robin_weight =
+	for (x = 0; x < VRB1_NUM_VFS; x++) {
+		vrb1_conf->arb_dl_5g[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
+		vrb1_conf->arb_dl_5g[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
+		vrb1_conf->arb_dl_5g[x].round_robin_weight =
 				ARBDL_ROUND_ROBIN_WEIGHT;
 	}
-	for (x = 0; x < ACC200_NUM_VFS; x++) {
-		acc200_conf->arb_ul_5g[x].gbr_threshold1 = ARBUL_GBR_THRSH1;
-		acc200_conf->arb_ul_5g[x].gbr_threshold2 = ARBUL_GBR_THRSH2;
-		acc200_conf->arb_ul_5g[x].round_robin_weight =
+	for (x = 0; x < VRB1_NUM_VFS; x++) {
+		vrb1_conf->arb_ul_5g[x].gbr_threshold1 = ARBUL_GBR_THRSH1;
+		vrb1_conf->arb_ul_5g[x].gbr_threshold2 = ARBUL_GBR_THRSH2;
+		vrb1_conf->arb_ul_5g[x].round_robin_weight =
 				ARBUL_ROUND_ROBIN_WEIGHT;
 	}
-	for (x = 0; x < ACC200_NUM_VFS; x++) {
-		acc200_conf->arb_fft[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
-		acc200_conf->arb_fft[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
-		acc200_conf->arb_fft[x].round_robin_weight =
+	for (x = 0; x < VRB1_NUM_VFS; x++) {
+		vrb1_conf->arb_fft[x].gbr_threshold1 = ARBDL_GBR_THRSH1;
+		vrb1_conf->arb_fft[x].gbr_threshold2 = ARBDL_GBR_THRSH2;
+		vrb1_conf->arb_fft[x].round_robin_weight =
 				ARBDL_ROUND_ROBIN_WEIGHT;
 	}
 }
 
 /* Handler function for .ini parser (returns 1 for success) */
 static int
-acc200_handler(void *user, const char *section,
+vrb1_handler(void *user, const char *section,
 	    const char *name, const char *value)
 {
-	struct acc200_conf *acc200_conf = (struct acc200_conf *) user;
+	struct vrb1_conf *vrb1_conf = (struct vrb1_conf *) user;
 	int ret = 1, index;
 
 	if (!strcmp(section, MODE) && !strcmp(name, PFMODE)) {
 		if (!strcmp(value, ZERO))
-			acc200_conf->pf_mode_en = false;
+			vrb1_conf->pf_mode_en = false;
 		else if (!strcmp(value, ONE))
-			acc200_conf->pf_mode_en = true;
+			vrb1_conf->pf_mode_en = true;
 		else
 			ret = 0;
 	} else if (!strcmp(section, LLR_SIGN) &&
 			!strcmp(name, INPUT_POS_LLR_1_BIT)) {
 		if (!strcmp(value, ZERO))
-			acc200_conf->input_pos_llr_1_bit = false;
+			vrb1_conf->input_pos_llr_1_bit = false;
 		else if (!strcmp(value, ONE))
-			acc200_conf->input_pos_llr_1_bit = true;
+			vrb1_conf->input_pos_llr_1_bit = true;
 		else
 			ret = 0;
 	} else if (!strcmp(section, LLR_SIGN) &&
 			!strcmp(name, OUTPUT_POS_LLR_1_BIT)) {
 		if (!strcmp(value, ZERO))
-			acc200_conf->output_pos_llr_1_bit = false;
+			vrb1_conf->output_pos_llr_1_bit = false;
 		else if (!strcmp(value, ONE))
-			acc200_conf->output_pos_llr_1_bit = true;
+			vrb1_conf->output_pos_llr_1_bit = true;
 		else
 			ret = 0;
 	} else if (!strcmp(section, VFBUNDLES) &&
 			!strcmp(name, NUMVF_BUNDLES)) {
-		ret = parse_number16(value, &acc200_conf->num_vf_bundles);
+		ret = parse_number16(value, &vrb1_conf->num_vf_bundles);
 	} else if (!strcmp(section, MAXQSIZE) &&
 			!strcmp(name, MAX_QUEUE_SIZE)) {
 		/* MAX_QUEUE_SIZE is not used. Keep it for parsing purposes */
 	} else if (!strcmp(section, QUL4G) && !strcmp(name, NUM_QGROUPS)) {
-		ret = parse_number16(value, &acc200_conf->q_ul_4g.num_qgroups);
+		ret = parse_number16(value, &vrb1_conf->q_ul_4g.num_qgroups);
 	} else if (!strcmp(section, QUL4G) &&
 			!strcmp(name, NUM_AQS_PER_GROUPS)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_ul_4g.num_aqs_per_groups);
+				&vrb1_conf->q_ul_4g.num_aqs_per_groups);
 	} else if (!strcmp(section, QUL4G) && !strcmp(name, AQ_DEPTH_LOG2)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_ul_4g.aq_depth_log2);
+				&vrb1_conf->q_ul_4g.aq_depth_log2);
 	} else if (!strcmp(section, QDL4G) && !strcmp(name, NUM_QGROUPS)) {
-		ret = parse_number16(value, &acc200_conf->q_dl_4g.num_qgroups);
+		ret = parse_number16(value, &vrb1_conf->q_dl_4g.num_qgroups);
 	} else if (!strcmp(section, QDL4G) &&
 			!strcmp(name, NUM_AQS_PER_GROUPS)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_dl_4g.num_aqs_per_groups);
+				&vrb1_conf->q_dl_4g.num_aqs_per_groups);
 	} else if (!strcmp(section, QDL4G) && !strcmp(name, AQ_DEPTH_LOG2)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_dl_4g.aq_depth_log2);
+				&vrb1_conf->q_dl_4g.aq_depth_log2);
 	} else if (!strcmp(section, QUL5G) && !strcmp(name, NUM_QGROUPS)) {
-		ret = parse_number16(value, &acc200_conf->q_ul_5g.num_qgroups);
+		ret = parse_number16(value, &vrb1_conf->q_ul_5g.num_qgroups);
 	} else if (!strcmp(section, QUL5G) &&
 			!strcmp(name, NUM_AQS_PER_GROUPS)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_ul_5g.num_aqs_per_groups);
+				&vrb1_conf->q_ul_5g.num_aqs_per_groups);
 	} else if (!strcmp(section, QUL5G) && !strcmp(name, AQ_DEPTH_LOG2)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_ul_5g.aq_depth_log2);
+				&vrb1_conf->q_ul_5g.aq_depth_log2);
 	} else if (!strcmp(section, QDL5G) && !strcmp(name, NUM_QGROUPS)) {
-		ret = parse_number16(value, &acc200_conf->q_dl_5g.num_qgroups);
+		ret = parse_number16(value, &vrb1_conf->q_dl_5g.num_qgroups);
 	} else if (!strcmp(section, QDL5G) &&
 			!strcmp(name, NUM_AQS_PER_GROUPS)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_dl_5g.num_aqs_per_groups);
+				&vrb1_conf->q_dl_5g.num_aqs_per_groups);
 	} else if (!strcmp(section, QDL5G) && !strcmp(name, AQ_DEPTH_LOG2)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_dl_5g.aq_depth_log2);
+				&vrb1_conf->q_dl_5g.aq_depth_log2);
 	} else if (!strcmp(section, QFFT) && !strcmp(name, NUM_QGROUPS)) {
-		ret = parse_number16(value, &acc200_conf->q_fft.num_qgroups);
+		ret = parse_number16(value, &vrb1_conf->q_fft.num_qgroups);
 	} else if (!strcmp(section, QFFT) &&
 			!strcmp(name, NUM_AQS_PER_GROUPS)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_fft.num_aqs_per_groups);
+				&vrb1_conf->q_fft.num_aqs_per_groups);
 	} else if (!strcmp(section, QFFT) && !strcmp(name, AQ_DEPTH_LOG2)) {
 		ret = parse_number16(value,
-				&acc200_conf->q_fft.aq_depth_log2);
+				&vrb1_conf->q_fft.aq_depth_log2);
 	} else if (strstr(section, ARBUL4G) &&
 			!strcmp(name, ROUND_ROBIN_WEIGHT)) {
 		index = parse_item_no(section, ARBUL4G);
 		ret = parse_number16(value,
-			&acc200_conf->arb_ul_4g[index].round_robin_weight);
+			&vrb1_conf->arb_ul_4g[index].round_robin_weight);
 	} else if (strstr(section, ARBUL4G) && !strcmp(name, GBR_THRSH1)) {
 		index = parse_item_no(section, ARBUL4G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_ul_4g[index].gbr_threshold1);
+				&vrb1_conf->arb_ul_4g[index].gbr_threshold1);
 	} else if (strstr(section, ARBUL4G) && !strcmp(name, GBR_THRSH2)) {
 		index = parse_item_no(section, ARBUL4G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_ul_4g[index].gbr_threshold2);
+				&vrb1_conf->arb_ul_4g[index].gbr_threshold2);
 	} else if (strstr(section, ARBDL4G) &&
 			!strcmp(name, ROUND_ROBIN_WEIGHT)) {
 		index = parse_item_no(section, ARBDL4G);
 		ret = parse_number16(value,
-			&acc200_conf->arb_dl_4g[index].round_robin_weight);
+			&vrb1_conf->arb_dl_4g[index].round_robin_weight);
 	} else if (strstr(section, ARBDL4G) && !strcmp(name, GBR_THRSH1)) {
 		index = parse_item_no(section, ARBDL4G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_dl_4g[index].gbr_threshold1);
+				&vrb1_conf->arb_dl_4g[index].gbr_threshold1);
 	} else if (strstr(section, ARBDL4G) && !strcmp(name, GBR_THRSH2)) {
 		index = parse_item_no(section, ARBDL4G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_dl_4g[index].gbr_threshold2);
+				&vrb1_conf->arb_dl_4g[index].gbr_threshold2);
 	} else if (strstr(section, ARBUL5G) &&
 			!strcmp(name, ROUND_ROBIN_WEIGHT)) {
 		index = parse_item_no(section, ARBUL5G);
 		ret = parse_number16(value,
-			&acc200_conf->arb_ul_5g[index].round_robin_weight);
+			&vrb1_conf->arb_ul_5g[index].round_robin_weight);
 	} else if (strstr(section, ARBUL5G) && !strcmp(name, GBR_THRSH1)) {
 		index = parse_item_no(section, ARBUL5G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_ul_5g[index].gbr_threshold1);
+				&vrb1_conf->arb_ul_5g[index].gbr_threshold1);
 	} else if (strstr(section, ARBUL5G) && !strcmp(name, GBR_THRSH2)) {
 		index = parse_item_no(section, ARBUL5G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_ul_5g[index].gbr_threshold2);
+				&vrb1_conf->arb_ul_5g[index].gbr_threshold2);
 	} else if (strstr(section, ARBDL5G) &&
 			!strcmp(name, ROUND_ROBIN_WEIGHT)) {
 		index = parse_item_no(section, ARBDL5G);
 		ret = parse_number16(value,
-			&acc200_conf->arb_dl_5g[index].round_robin_weight);
+			&vrb1_conf->arb_dl_5g[index].round_robin_weight);
 	} else if (strstr(section, ARBDL5G) && !strcmp(name, GBR_THRSH1)) {
 		index = parse_item_no(section, ARBDL5G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_dl_5g[index].gbr_threshold1);
+				&vrb1_conf->arb_dl_5g[index].gbr_threshold1);
 	} else if (strstr(section, ARBDL5G) && !strcmp(name, GBR_THRSH2)) {
 		index = parse_item_no(section, ARBDL5G);
 		ret = parse_number32(value,
-				&acc200_conf->arb_dl_5g[index].gbr_threshold2);
+				&vrb1_conf->arb_dl_5g[index].gbr_threshold2);
 	} else if (strstr(section, ARBFFT) &&
 			!strcmp(name, ROUND_ROBIN_WEIGHT)) {
 		index = parse_item_no(section, ARBFFT);
 		ret = parse_number16(value,
-			&acc200_conf->arb_fft[index].round_robin_weight);
+			&vrb1_conf->arb_fft[index].round_robin_weight);
 	} else if (strstr(section, ARBFFT) && !strcmp(name, GBR_THRSH1)) {
 		index = parse_item_no(section, ARBFFT);
 		ret = parse_number32(value,
-				&acc200_conf->arb_fft[index].gbr_threshold1);
+				&vrb1_conf->arb_fft[index].gbr_threshold1);
 	} else if (strstr(section, ARBFFT) && !strcmp(name, GBR_THRSH2)) {
 		index = parse_item_no(section, ARBFFT);
 		ret = parse_number32(value,
-				&acc200_conf->arb_fft[index].gbr_threshold2);
+				&vrb1_conf->arb_fft[index].gbr_threshold2);
 	} else {
 		printf("ERROR: section (%s) or name (%s) is not valid\n",
 			section, name);
@@ -353,21 +355,21 @@ acc200_handler(void *user, const char *section,
 
 /* Enforce range check for a given queue configuration */
 int
-acc200_queue_range_check(struct q_topology_t q_conf)
+vrb1_queue_range_check(struct q_topology_t q_conf)
 {
 	if ((q_conf.num_aqs_per_groups < 1) ||
-			(q_conf.num_aqs_per_groups > ACC200_NUM_AQS)) {
+			(q_conf.num_aqs_per_groups > VRB1_NUM_AQS)) {
 		printf("ERROR: Number of AQs out of range %d\n",
 				q_conf.num_aqs_per_groups);
 		return -1;
 	}
 	if ((q_conf.aq_depth_log2 < 1) ||
-			(q_conf.aq_depth_log2 > ACC200_MAX_QDEPTH)) {
+			(q_conf.aq_depth_log2 > VRB1_MAX_QDEPTH)) {
 		printf("ERROR: AQ Depth out of range %d\n",
 				q_conf.aq_depth_log2);
 		return -1;
 	}
-	if (q_conf.num_qgroups > ACC200_NUM_QGRPS) {
+	if (q_conf.num_qgroups > VRB1_NUM_QGRPS) {
 		printf("ERROR: Number of QG out of range %d\n",
 				q_conf.num_qgroups);
 		return -1;
@@ -377,54 +379,54 @@ acc200_queue_range_check(struct q_topology_t q_conf)
 
 /* Enforce range check for a given device configuration */
 int
-acc200_range_check(struct acc200_conf *acc200_conf)
+vrb1_range_check(struct vrb1_conf *vrb1_conf)
 {
-	uint16_t totalQgs = acc200_conf->q_ul_4g.num_qgroups +
-			acc200_conf->q_ul_5g.num_qgroups +
-			acc200_conf->q_dl_4g.num_qgroups +
-			acc200_conf->q_dl_5g.num_qgroups +
-			acc200_conf->q_fft.num_qgroups;
-	if (totalQgs > ACC200_NUM_QGRPS) {
+	uint16_t totalQgs = vrb1_conf->q_ul_4g.num_qgroups +
+			vrb1_conf->q_ul_5g.num_qgroups +
+			vrb1_conf->q_dl_4g.num_qgroups +
+			vrb1_conf->q_dl_5g.num_qgroups +
+			vrb1_conf->q_fft.num_qgroups;
+	if (totalQgs > VRB1_NUM_QGRPS) {
 		printf("ERROR: Number of Qgroups %d > %d\n",
-				totalQgs, ACC200_NUM_QGRPS);
+				totalQgs, VRB1_NUM_QGRPS);
 		return -1;
 	}
-	if (acc200_conf->num_vf_bundles > ACC200_NUM_VFS) {
+	if (vrb1_conf->num_vf_bundles > VRB1_NUM_VFS) {
 		printf("ERROR: Number of VFs bundle %d > %d\n",
-				acc200_conf->num_vf_bundles, ACC200_NUM_VFS);
+				vrb1_conf->num_vf_bundles, VRB1_NUM_VFS);
 		return -1;
 	}
-	if (acc200_queue_range_check(acc200_conf->q_ul_4g) != 0)
+	if (vrb1_queue_range_check(vrb1_conf->q_ul_4g) != 0)
 		return -1;
-	if (acc200_queue_range_check(acc200_conf->q_dl_4g) != 0)
+	if (vrb1_queue_range_check(vrb1_conf->q_dl_4g) != 0)
 		return -1;
-	if (acc200_queue_range_check(acc200_conf->q_ul_5g) != 0)
+	if (vrb1_queue_range_check(vrb1_conf->q_ul_5g) != 0)
 		return -1;
-	if (acc200_queue_range_check(acc200_conf->q_dl_5g) != 0)
+	if (vrb1_queue_range_check(vrb1_conf->q_dl_5g) != 0)
 		return -1;
-	if (acc200_queue_range_check(acc200_conf->q_fft) != 0)
+	if (vrb1_queue_range_check(vrb1_conf->q_fft) != 0)
 		return -1;
 	return 0;
 }
 
 int
-acc200_parse_conf_file(const char *file_name, struct acc200_conf *acc200_conf)
+vrb1_parse_conf_file(const char *file_name, struct vrb1_conf *vrb1_conf)
 {
 	int ret;
 
-	set_default_config(acc200_conf);
+	set_default_config(vrb1_conf);
 
-	ret = cfg_parse(file_name, acc200_handler, acc200_conf);
+	ret = cfg_parse(file_name, vrb1_handler, vrb1_conf);
 	if (ret != 0) {
 		printf("ERROR: Config file parser error\n");
-		set_default_config(acc200_conf);
+		set_default_config(vrb1_conf);
 		return -1;
 	}
 
-	ret = acc200_range_check(acc200_conf);
+	ret = vrb1_range_check(vrb1_conf);
 	if (ret != 0) {
 		printf("ERROR: Parameter out of range\n");
-		set_default_config(acc200_conf);
+		set_default_config(vrb1_conf);
 		return -1;
 	}
 

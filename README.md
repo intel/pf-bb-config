@@ -27,7 +27,7 @@ The application executes as follows:
 
     ./pf_bb_config DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]
 
-* `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100' or 'ACC200'
+* `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100' or 'VRB1'
 * `-h`: Prints help
 * `-c CFG_FILE`: Specifies configuration file to use
 * `-p PCI_ID`: Specifies PCI ID of device to configure
@@ -50,14 +50,26 @@ and within Intel FlexRAN documentation on the Intel Resource & Design Center
 The example in this section uses the vfio-pci module and assumes that
 Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is enabled.
 
-Load the vfio-pci driver with sriov capability enabled if not already loaded:
+First the vfio-pcio module must be loaded with the required parameters and
+there are a few methods available to do this:
+
+* When the module is built-in, it is automally loaded at boot time
+and the parameters can be passed automatically through the kernel cmdline (grub):
+
+    vfio_pci.enable_sriov=1 vfio_pci.disable_idle_d3=1
+
+* Another option for built-in module, is to set these parameters manually after boot once
+module is loaded:
+
+    echo 1 | sudo tee /sys/module/vfio_pci/parameters/enable_sriov
+
+    echo 1 | sudo tee /sys/module/vfio_pci/parameters/disable_idle_d3
+
+* Last when the vfio-pci is a loadable kernel module the module can be loaded explictly as well:
 
     modprobe vfio-pci enable_sriov=1 disable_idle_d3=1
 
-Or pass these parameters at boot up through the kernel cmdline
-(`vfio_pci.enable_sriov=1 vfio_pci.disable_idle_d3=1`)
-
-Bind the PF with the vfio-pci module:
+Next step is to bind the PF with the vfio-pci module:
 
     $dpdkPath/usertools/dpdk-devbind.py --bind=vfio-pci $pfPciDeviceAddr
 
@@ -69,10 +81,6 @@ Configure the device using the pf_bb_config application for VF usage with both
 Create 2 VFs from the PF using the exposed sysfs interface:
 
     echo 2 | sudo tee /sys/bus/pci/devices/0000:$pfPciDeviceAddr/sriov_numvfs
-
-Bind both VFs using the vfio-pci module (make sure that Intel® VT-d is enabled):
-
-    $dpdkPath/usertools/dpdk-devbind.py --bind=vfio-pci $vfPciDeviceAddr1 $vfPciDeviceAddr2
 
 Test that the VF is functional on the device using bbdev-test:
 
@@ -140,7 +148,7 @@ From DPDK 20.11, the previous command must be updated as follows:
 
     ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
 
-## Details for ACC200 Configuration (Intel® vRAN Boost for 4th Gen Intel Xeon Scalable Processor)
+## Details for VRB1 Configuration (Intel® vRAN Boost v1.0 for 4th Gen Intel Xeon Scalable Processor)
 
 * A number of configuration file examples are available in the acc200 directory.
 These examples include the following parameters, which can be modified for a
@@ -171,7 +179,11 @@ There can be a maximum of 16 * 16 * 16 = 4K total queues.
 the configuration for 16 VFs in SRIOV mode with a total of 16 x 16 queues per VF covering
 all the possible processing engine functions.
 
-## Error reporting and recovery (specific to ACC200)
+* The FFT engines includes an internal memory used to define the semi-static windowing parameters.
+The content of that table is loaded from binary files vrb1/srs_fft_windows_coefficient.bin
+(up to 1024 points across 16 windows and 7 iDFT sizes).
+
+## Error reporting and recovery (specific to VRB1)
 
 It is not expected for the accelerator to get into a bad state under any condition. Still
 the pf_bb_config supports the capability of detecting, reporting and recovering any
@@ -187,8 +199,8 @@ Sat Dec  3 00:12:56 2022:ERR:Fatal error
 Sat Dec  3 00:12:56 2022:INFO:Cluster reset and reconfig
 Sat Dec  3 00:12:57 2022:INFO:Queue Groups UL4G 2 DL4G 2 UL5G 4 DL5G 4 FFT 4
 Sat Dec  3 00:12:57 2022:INFO:Configuration in VF mode
-Sat Dec  3 00:12:58 2022:INFO:ACC200 configuration complete
-Sat Dec  3 00:12:58 2022:INFO:ACC200 PF [0000:f7:00.0] Reconfiguration complete!
+Sat Dec  3 00:12:58 2022:INFO:VRB1 configuration complete
+Sat Dec  3 00:12:58 2022:INFO:VRB1 PF [0000:f7:00.0] Reconfiguration complete!
 
 ## Details for ACC100 Configuration (aka Mount Bryce)
 
