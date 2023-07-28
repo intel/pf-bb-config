@@ -31,6 +31,18 @@
 
 #define BBDEV_DEV_STATUS_COUNT 9
 
+/* Protected address ranges. */
+#define VRB1_QMGR_BA_START 0xA01000
+#define VRB1_QMGR_BA_END   0xA02000
+#define VRB1_ARAM_START    0x818000
+#define VRB1_ARAM_END      0x820000
+#define VRB1_QOS_A_START   0xB900C0
+#define VRB1_QOS_A_END     0xB900E0
+#define VRB1_QOS_B_START   0xBA00C0
+#define VRB1_QOS_B_END     0xBA00E0
+#define VRB1_QOS_C_START   0xBB00C0
+#define VRB1_QOS_C_END     0xBB00E0
+
 static uint32_t
 reg_read(uint8_t *mmio_base, uint32_t offset)
 {
@@ -253,12 +265,23 @@ auto_reset_mode(void *dev, int mode)
 void
 clear_log_file(void *dev)
 {
-	char logFile[BB_ACC_LOG_FILE_LEN];
+	char log_file[BB_ACC_LOG_FILE_LEN];
 	hw_device *accel_dev = (hw_device *)dev;
-	sprintf(logFile, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
+	sprintf(log_file, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
 			accel_dev->pci_address);
-	LOG(INFO, "logFile = %s", logFile);
-	bb_acc_reset_logFile(logFile);
+	LOG(INFO, "log_file = %s", log_file);
+	bb_acc_reset_logFile(log_file, BB_ACC_LOG_MAIN);
+}
+
+void
+clear_log_resp_file(void *dev)
+{
+	char log_file[BB_ACC_LOG_FILE_LEN];
+	hw_device *accel_dev = (hw_device *)dev;
+	sprintf(log_file, "%s/pf_bb_cfg_%s_response.log", BB_ACC_DEFAULT_LOG_PATH,
+			accel_dev->pci_address);
+	LOG(INFO, "logRespFile = %s", log_file);
+	bb_acc_reset_logFile(log_file, BB_ACC_LOG_RESP);
 }
 
 int
@@ -272,7 +295,7 @@ acc100_reg_dump(hw_device *accel_dev,
 		payload = reg_read(
 				accel_dev->bar0Addr,
 				rd_db[i].reg_offset);
-		LOG(INFO, "%s\t\t, 0x%08x, 0x%08x", rd_db[i].reg_name,
+		LOG_RESP(INFO, "%s\t\t, 0x%08x, 0x%08x", rd_db[i].reg_name,
 				rd_db[i].reg_offset, payload);
 	}
 	return 0;
@@ -289,7 +312,7 @@ vrb1_reg_dump(hw_device *accel_dev,
 		payload = reg_read(
 				accel_dev->bar0Addr,
 				rd_db[i].reg_offset);
-		LOG(INFO, "%s\t\t, 0x%08x, 0x%08x", rd_db[i].reg_name,
+		LOG_RESP(INFO, "%s\t\t, 0x%08x, 0x%08x", rd_db[i].reg_name,
 				rd_db[i].reg_offset, payload);
 	}
 	return 0;
@@ -304,6 +327,7 @@ int acc_reg_dump(void *dev, int devType)
 		printf("ERR: Wrong device configured\n");
 		return 0;
 	}
+	clear_log_resp_file(dev);
 
 	if (devType == ACC100_DEVICE_ID) {
 		num = sizeof(acc100_rd_db) / sizeof(struct acc100_reg_dump_info);
@@ -312,8 +336,9 @@ int acc_reg_dump(void *dev, int devType)
 		num = sizeof(vrb1_rd_db) / sizeof(struct vrb1_reg_dump_info);
 		vrb1_reg_dump(device, vrb1_rd_db, num);
 	} else
-		printf("ERR: Wrong Device !!!\n");
+		LOG_RESP(ERR, "Wrong Device for ref_dump!");
 
+	LOG_RESP_END();
 	return 0;
 }
 
@@ -323,29 +348,48 @@ int acc_mem_read(void *dev, int rwFlag, int regAddr, int wPayload)
 	uint32_t payload = 0x0;
 	LOG(DEBUG, "rwFlag = %d, regAddr = 0x%x, wPayload = 0x%x\n",
 			rwFlag, regAddr, wPayload);
+	clear_log_resp_file(dev);
 	/* Protection specific to VRB registers. */
 	if (device->device_id == VRB1_DEVICE_ID) {
-		if ((regAddr >= 0xA01000) && (regAddr < 0xA02000)) {
-			LOG(ERR, "Invalid Address for VRB1 0x%x\n", regAddr);
+		if ((regAddr >= VRB1_QMGR_BA_START) && (regAddr < VRB1_QMGR_BA_END)) {
+			LOG_RESP(ERR, "Invalid Address for VRB1 0x%x", regAddr);
 			return 0;
 		}
-		if ((regAddr >= 0x818000) && (regAddr < 0x820000)) {
-			LOG(ERR, "Invalid ARAM Address for VRB1 0x%x\n", regAddr);
+		if ((regAddr >= VRB1_ARAM_START) && (regAddr < VRB1_ARAM_END)) {
+			LOG_RESP(ERR, "Invalid ARAM Address for VRB1 0x%x", regAddr);
 			return 0;
 		}
+		if ((regAddr >= VRB1_QOS_A_START) && (regAddr < VRB1_QOS_A_END)) {
+			LOG_RESP(ERR, "Invalid QoS A Address for VRB1 0x%x", regAddr);
+			return 0;
+		}
+		if ((regAddr >= VRB1_QOS_B_START) && (regAddr < VRB1_QOS_B_END)) {
+			LOG_RESP(ERR, "Invalid QoS B Address for VRB1 0x%x", regAddr);
+			return 0;
+		}
+		if ((regAddr >= VRB1_QOS_C_START) && (regAddr < VRB1_QOS_C_END)) {
+			LOG_RESP(ERR, "Invalid QoS C Address for VRB1 0x%x", regAddr);
+			return 0;
+		}
+	}
+
+	if (regAddr >= device->bar_size) {
+		LOG_RESP(ERR, "Invalid address range for PF BAR 0x%x", regAddr);
+		return 0;
 	}
 
 	switch (rwFlag) {
 	default:
 	case MM_READ_REG_READ:
 		payload = reg_read(device->bar0Addr, regAddr);
-		LOG(INFO, "Read 0x%08X 0x%08X\n", regAddr, payload);
+		LOG_RESP(INFO, "Read 0x%08X 0x%08X\n", regAddr, payload);
 		break;
 	case MM_READ_REG_WRITE:
-		LOG(INFO, "Write 0x%08X 0x%08X\n", regAddr, wPayload);
+		LOG_RESP(INFO, "Write 0x%08X 0x%08X\n", regAddr, wPayload);
 		reg_write(device->bar0Addr, regAddr, wPayload);
 		break;
 	}
+	LOG_RESP_END();
 	return 0;
 }
 
@@ -363,7 +407,7 @@ print_all_stat32(hw_device *accel_dev, uint32_t address, int num, int reg_offset
 		payload = reg_read(accel_dev->bar0Addr, address + reg_offset * vf_idx);
 		len = print_stat32(buf, len, 1024, payload);
 	}
-	LOG(INFO, "%s", buf);
+	LOG_RESP(INFO, "%s", buf);
 }
 
 int
@@ -376,10 +420,12 @@ print_stat32(char *buf, int offset, int len, uint32_t stat)
 void acc_device_data(void *dev)
 {
 	hw_device *device = (hw_device *)dev;
+	clear_log_resp_file(dev);
 
 	if (device->device_id == ACC100_DEVICE_ID)
 		acc100_device_data(device);
 	else if (device->device_id == VRB1_DEVICE_ID)
 		vrb1_device_data(device);
+	LOG_RESP_END();
 }
 

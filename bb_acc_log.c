@@ -26,7 +26,8 @@
 #define BB_ACC_MAX_LOG_FILE_NAME 500
 struct bb_acc_logCtl {
 	int level;
-	FILE *fp;
+	FILE *main_fp;
+	FILE *secondary_fp;
 	uint64_t maxSize;
 	int vfiopciMode;
 };
@@ -41,7 +42,7 @@ const char *logStr[] = {
 static struct bb_acc_logCtl logCtl;
 
 static int
-bb_acc_vlog(int level, const char *format, va_list ap)
+bb_acc_vlog(int level, int log_type, const char *format, va_list ap)
 {
 	int ret;
 	if (!logCtl.vfiopciMode) {
@@ -49,7 +50,9 @@ bb_acc_vlog(int level, const char *format, va_list ap)
 			return 0;
 		ret = vprintf(format, ap);
 	} else {
-		FILE *fp = logCtl.fp;
+		FILE *fp = logCtl.main_fp;
+		if (log_type != 0)
+			fp = logCtl.secondary_fp;
 
 		if (level > logCtl.level)
 			return 0;
@@ -67,47 +70,60 @@ bb_acc_vlog(int level, const char *format, va_list ap)
 }
 
 int
-bb_acc_log(int level, const char *format, ...)
+bb_acc_log(int level, int log_type, const char *format, ...)
 {
 	va_list ap;
 	int ret;
 
 	va_start(ap, format);
-	ret = bb_acc_vlog(level, format, ap);
+	ret = bb_acc_vlog(level, log_type, format, ap);
 	va_end(ap);
 
 	return ret;
 }
 
 int
-bb_acc_logInit(char *file_name, uint64_t size, int level, int vfiopciMode)
+bb_acc_logInit(char *main_file_name, char *resp_file_name, uint64_t size, int level,
+		int vfiopciMode)
 {
-	FILE *fp = NULL;
+	FILE *fp = NULL, *fp_2 = NULL;
 
 	if (!vfiopciMode) {
-		/*igb_uio mode*/
-		logCtl.fp = fp;
-		logCtl.maxSize = size;/*having no use*/
+		/* igb_uio mode. */
+		logCtl.main_fp = fp;
+		logCtl.secondary_fp = fp;
+		logCtl.maxSize = size; /* having no use. */
 		logCtl.level = level;
 		logCtl.vfiopciMode = vfiopciMode;
 	} else {
-		if (logCtl.fp != NULL)
+		if (logCtl.main_fp != NULL)
 			return 0;
 
-		fp = fopen(file_name, "r+");
+		fp = fopen(main_file_name, "r+");
 		if (fp == NULL) {
-			fp = fopen(file_name, "w+");
+			fp = fopen(main_file_name, "w+");
 			if (fp == NULL) {
 				perror("Log file open failed");
 				return -1;
 			}
 		}
+		fp_2 = fopen(resp_file_name, "r+");
+		if (fp_2 == NULL) {
+			fp_2 = fopen(resp_file_name, "w+");
+			if (fp_2 == NULL) {
+				perror("Log file open failed");
+				fclose(fp);
+				return -1;
+			}
+		}
 
-		logCtl.fp = fp;
+		logCtl.main_fp = fp;
+		logCtl.secondary_fp = fp_2;
 		logCtl.maxSize = size;
 		logCtl.level = level;
 		logCtl.vfiopciMode = vfiopciMode;
 		fseek(fp, 0, SEEK_END);
+		fseek(fp_2, 0, SEEK_END);
 	}
 	return 0;
 }
@@ -115,21 +131,25 @@ bb_acc_logInit(char *file_name, uint64_t size, int level, int vfiopciMode)
 void
 bb_acc_logExit()
 {
-	if (logCtl.fp == NULL)
+	if (logCtl.main_fp == NULL)
 		return;
 
-	fclose(logCtl.fp);
+	fclose(logCtl.main_fp);
+	fclose(logCtl.secondary_fp);
 }
 
 void
-bb_acc_reset_logFile(char *file_name)
+bb_acc_reset_logFile(char *file_name, int log_type)
 {
 	char sysCmd[1024];
 	memset(sysCmd, 0, sizeof(sysCmd));
-	if (logCtl.fp == NULL)
+	if (logCtl.main_fp == NULL)
 		return;
 	sprintf(sysCmd, "sudo truncate -s 0 %s", file_name);
 	if (system(sysCmd))
 		perror("Failed to clear the log file");
-	fseek(logCtl.fp, 0, SEEK_SET);
+	if (log_type == 0)
+		fseek(logCtl.main_fp, 0, SEEK_SET);
+	else
+		fseek(logCtl.secondary_fp, 0, SEEK_SET);
 }

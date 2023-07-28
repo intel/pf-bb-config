@@ -1,7 +1,20 @@
 pf_bb_config Release Note
 =========================
 
+23.07 new features and fixes
+----------------------------
+* Intel vRAN Boost v1 update to FFT windowing:
+ * Update of the default FFT windowing bin file for VRB1.
+ * Adding option to point to path of the FFT  windowing bin file
+ * Support to expose the FFT window bin version number towards bbdev.
+* Log management update. The device telemetry is now captured in a distinct file from the main log.
+* Clean socket file in case still present after ungraceful exit.
+* Protection to avoid illegal MMIO access.
+* Fix to the -p option to allow a specific PCIe address to used.
+* Fix to exception from negative test and coverity warning.
+
 23.03 new features and fixes
+----------------------------
 * Intel vRAN Boost v1 (SPR-EE PRQ) specific changes :
  * Code refactor for refreshed product branding: ACC200 -> VRB1. Backward compatible usage.
  * Protection for MMIO Read interface to bar access to specific register range.
@@ -16,6 +29,7 @@ pf_bb_config Release Note
 * Support for flexible number of queues with N6000.
 
 22.11 new features and fixes
+----------------------------
 * Improvement for ACC200 accelerator management (still prePRQ)
   including mitigations for known sightings as well as RAS improvements.
 * Removing the -a optional argument (all devices) which was not supported in practice.

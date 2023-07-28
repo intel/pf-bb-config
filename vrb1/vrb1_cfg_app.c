@@ -143,7 +143,7 @@ vrb1_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 	hw_device *accel_dev = (hw_device *)dev;
 	uint8_t *bar0addr = accel_dev->bar0Addr;
 
-	LOG(DEBUG, "Doorbell vf2pf");
+	LOG(DEBUG, "Doorbell vf2pf %d", payload);
 
 	if (payload == REQ_DEV_STATUS) {
 		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf +
@@ -159,6 +159,12 @@ vrb1_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 		if (accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_RESTART_REQ ||
 				accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_RECONFIG_REQ)
 			accel_dev->dev_status[vf_index] = RTE_BBDEV_DEV_CONFIGURED;
+	}
+	/* Reports a version number based on the used FFT LUT binary file. */
+	if (payload == REQ_DEV_LUT_VER) {
+		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf +
+				BB_ACC_PF_TO_VF_DBELL_REG_OFFSET * vf_index,
+				(uint32_t)accel_dev->fft_version_md5sum);
 	}
 	if (payload == REQ_DEV_NEW && accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_CONFIGURED) {
 		accel_dev->dev_status[vf_index] = RTE_BBDEV_DEV_ACTIVE;
@@ -384,13 +390,42 @@ vrb1_qtopFromAcc(struct q_topology_t **qtop, int acc_enum,
 	*qtop = p_qtop;
 }
 
+void
+vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev)
+{
+	uint16_t ver_md;
+	char md_prefix[8];
+	char *cmd;
+	FILE *fp;
+
+	uint16_t size_cmd = snprintf(NULL, 0, "%s", lut_filename) + 8;
+	cmd = malloc(size_cmd);
+	sprintf(cmd, "md5sum %s", lut_filename);
+	fp = popen(cmd, "r");
+	free(cmd);
+	if (fp == NULL) {
+		LOG(ERR, "Unable to open FFT LUT %s", lut_filename);
+		return;
+	}
+	if (fgets(md_prefix, 5, fp) == NULL) {
+		LOG(ERR, "Unable to access FFT LUT %s", lut_filename);
+		pclose(fp);
+		return;
+	}
+	ver_md = (int)strtol(md_prefix, NULL, 16);
+	LOG(INFO, "  FFT Version Number %X", ver_md);
+	pclose(fp);
+	accel_pci_dev->fft_version_md5sum = ver_md;
+}
+
 /* Configure or reconfigure a given FFT engine. */
 static int
-vrb1_fft_reconfig(uint8_t *d, bool lut_programming)
+vrb1_fft_reconfig(uint8_t *d, bool lut_programming, hw_device *accel_pci_dev)
 {
 	int16_t gTDWinCoff[VRB1_LUT_SIZE], ret, offset, i, pageIdx;
 	const char *lut_filename;
 	FILE *fp;
+	bool unsafe_path;
 
 	/* Default FFT configuration. */
 	vrb1_reg_fast_write(d, HWPfFftConfig0, VRB1_FFT_CFG_0);
@@ -399,17 +434,23 @@ vrb1_fft_reconfig(uint8_t *d, bool lut_programming)
 		return 0;
 
 	/* Load the FFT windows LUT. */
-	lut_filename = "./vrb1/srs_fft_windows_coefficient.bin";
+	lut_filename = accel_pci_dev->fft_lut_filename;
+	unsafe_path = cfg_file_check_path_safety(lut_filename);
+	if (unsafe_path == true) {
+		LOG(ERR, "error, FFT LUT file path \"%s\" is not safe", lut_filename);
+		return -ENOENT;
+	}
+
 	fp = fopen(lut_filename, "rb");
 	if (fp == NULL) {
-		LOG(ERR, "  Error reading from %s", lut_filename);
+		LOG(ERR, "  Error reading from FFT LUT %s", lut_filename);
 		return -ENOENT;
 	}
 	ret = fread((char *)gTDWinCoff, VRB1_LUT_SIZE * 2, 1, fp);
 	if (ret <= 0) {
-		LOG(ERR, "  Error reading from %s", lut_filename);
+		LOG(ERR, "  Error reading from FFT LUT %s", lut_filename);
 		fclose(fp);
-		return ret;
+		return -ENOENT;
 	}
 	LOG(INFO, "  FFT Window coeffs preloading from %s", lut_filename);
 
@@ -429,6 +470,8 @@ vrb1_fft_reconfig(uint8_t *d, bool lut_programming)
 
 	vrb1_reg_fast_write(d, HWPfFftRamPageAccess, VRB1_FFT_RAM_DIS);
 	fclose(fp);
+
+	vrb_fft_lut_md5sum(lut_filename, accel_pci_dev);
 
 	return 0;
 }
@@ -548,12 +591,13 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	int rlim = 0;
 	int alen = 1;
 	int timestamp_en = 0;
-	int num_qgs;
+	int num_qgs, ret;
 	int num_qqs_acc = 0;
 	int num_engines = 0;
 	int total_qgs = 0;
 	int qman_func_id[8] = {0, 2, 1, 3, 4, 0, 0, 0};
 	uint8_t *d = mapaddr;
+	hw_device *accel_dev = (hw_device *)dev;
 
 	/* Check we are already out of PG */
 	status = vrb1_reg_read(d, HWPfHiSectionPowerGatingAck);
@@ -913,8 +957,12 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	vrb1_reg_fast_write(d, HWPfFftRamPageAccess, VRB1_FFT_RAM_DIS);
 
 	/* Setup window coefficients - persistent after reset. */
-	if (vrb1_conf->q_fft.num_qgroups > 0)
-		vrb1_fft_reconfig(d, first_cfg);
+	if (vrb1_conf->q_fft.num_qgroups > 0) {
+		ret = vrb1_fft_reconfig(d, first_cfg, accel_dev);
+		if (ret < 0)
+			return ret;
+	}
+
 
 	/* Enabling AQueues through the Queue hierarchy*/
 	for (vf_idx = 0; vf_idx < VRB1_NUM_VFS; vf_idx++) {
@@ -1166,27 +1214,27 @@ void vrb1_device_data(void *dev)
 	hw_device *accel_dev = (hw_device *)dev;
 	uint8_t *bar0addr = accel_dev->bar0Addr;
 
-	LOG(INFO, "Device Status:: %d VFs\n", accel_dev->numvfs);
+	LOG_RESP(INFO, "Device Status:: %d VFs\n", accel_dev->numvfs);
 	for (vf_idx = 0; vf_idx < accel_dev->numvfs; vf_idx++)
-		LOG(INFO, "-  VF %d %s\n", vf_idx,
+		LOG_RESP(INFO, "-  VF %d %s\n", vf_idx,
 			 bb_acc_device_status_str(accel_dev->dev_status[vf_idx]));
-	LOG(INFO, "5GUL counters: Code Blocks");
+	LOG_RESP(INFO, "5GUL counters: Code Blocks");
 	print_all_stat32(accel_dev, HWPfPermonACountVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "5GUL counters: Data (Bytes)");
+	LOG_RESP(INFO, "5GUL counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonAKCntLoVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "5GUL counters: Per Engine");
+	LOG_RESP(INFO, "5GUL counters: Per Engine");
 	print_all_stat32(accel_dev, HWPfPermonACbCountFec, VRB1_5GUL_ENGS, VRB1_PMON_OFF_2);
-	LOG(INFO, "5GDL counters: Code Blocks");
+	LOG_RESP(INFO, "5GDL counters: Code Blocks");
 	print_all_stat32(accel_dev, HWPfPermonBCountVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "5GDL counters: Data (Bytes)");
+	LOG_RESP(INFO, "5GDL counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonBKCntLoVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "5GDL counters: Per Engine");
+	LOG_RESP(INFO, "5GDL counters: Per Engine");
 	print_all_stat32(accel_dev, HWPfPermonBCbCountFec, VRB1_5GDL_ENGS, VRB1_PMON_OFF_2);
-	LOG(INFO, "FFT counters: Code Blocks");
+	LOG_RESP(INFO, "FFT counters: Code Blocks");
 	print_all_stat32(accel_dev, HWPfPermonCCountVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "FFT counters: Data (Bytes)");
+	LOG_RESP(INFO, "FFT counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonCKCntLoVf, accel_dev->numvfs, VRB1_PMON_OFF_1);
-	LOG(INFO, "FFT counters: Per Engine");
+	LOG_RESP(INFO, "FFT counters: Per Engine");
 	print_all_stat32(accel_dev, HWPfPermonCCbCountFec, VRB1_FFT_ENGS, VRB1_PMON_OFF_2);
 	/* Bus Monitor */
 	vrb1_reg_fast_write(bar0addr, HWPfPermonAControlBusMon, VRB1_BUSMON_STOP);
@@ -1197,7 +1245,7 @@ void vrb1_device_data(void *dev)
 		avg = (vrb1_reg_read(bar0addr, HWPfPermonATotalLatLowBusMon) +
 				vrb1_reg_read(bar0addr, HWPfPermonATotalLatUpperBusMon)
 				* ((uint64_t)1 << 32)) / num;
-		LOG(INFO, "Bus Monitor A (ns) Avg %u - Num %u - Min %d - Max %d",
+		LOG_RESP(INFO, "Bus Monitor A (ns) Avg %u - Num %u - Min %d - Max %d",
 				(uint32_t) avg, num, min, max);
 	}
 	vrb1_reg_fast_write(bar0addr, HWPfPermonAControlBusMon, VRB1_BUSMON_RESET);
@@ -1210,7 +1258,7 @@ void vrb1_device_data(void *dev)
 		avg = (vrb1_reg_read(bar0addr, HWPfPermonCTotalLatLowBusMon) +
 				vrb1_reg_read(bar0addr, HWPfPermonCTotalLatUpperBusMon)
 				* ((uint64_t)1 << 32)) / num;
-		LOG(INFO, "Bus Monitor C (ns) Avg %u - Num %u - Min %d - Max %d",
+		LOG_RESP(INFO, "Bus Monitor C (ns) Avg %u - Num %u - Min %d - Max %d",
 				(uint32_t) avg, num, min, max);
 	}
 	vrb1_reg_fast_write(bar0addr, HWPfPermonCControlBusMon, VRB1_BUSMON_RESET);

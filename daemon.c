@@ -163,6 +163,18 @@ unix_channel_srv_init(hw_device *dev)
 	char unix_channel_file[UNIX_CHANNEL_FILE_LEN];
 
 	LOG(DEBUG, "cli channel init");
+	sprintf(unix_channel_file, "%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
+
+	/* Check if the .sock file already exists */
+	if (access(unix_channel_file, F_OK) == 0) {
+		LOG(INFO, "pf_bb_config might have previously exited abruptly, removing %s",
+				unix_channel_file);
+		/* File exists, remove it */
+		if (unlink(unix_channel_file) == -1) {
+			LOG(ERR, "cli channel: failed to remove %s", unix_channel_file);
+			return -1;
+		}
+	}
 
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0) {
@@ -170,7 +182,6 @@ unix_channel_srv_init(hw_device *dev)
 		return -1;
 	}
 
-	sprintf(unix_channel_file, "%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
 	memset(&serveraddr, 0, sizeof(serveraddr));
 	serveraddr.sun_family = AF_UNIX;
 	strcpy(serveraddr.sun_path, unix_channel_file);

@@ -31,7 +31,8 @@ The application executes as follows:
 * `-h`: Prints help
 * `-c CFG_FILE`: Specifies configuration file to use
 * `-p PCI_ID`: Specifies PCI ID of device to configure
-* `-v VFIO_TOKEN` : `VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci
+* `-v VFIO_TOKEN`: `VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci
+* `-f FFT_LUT_FILE`: Specifies the FFT LUT bin file to be used if not default location.
 
 ## Usage Example
 

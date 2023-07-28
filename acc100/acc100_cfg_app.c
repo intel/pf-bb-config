@@ -818,21 +818,21 @@ void acc100_device_data(void *dev)
 
 	hw_device *accel_dev = (hw_device *)dev;
 
-	LOG(INFO, "Device Status:: %d VFs\n", accel_dev->numvfs);
+	LOG_RESP(INFO, "Device Status:: %d VFs", accel_dev->numvfs);
 	for (vf_idx = 0; vf_idx < accel_dev->numvfs; vf_idx++)
-		LOG(INFO, "-  VF %d %s\n", vf_idx,
+		LOG_RESP(INFO, "-  VF %d %s", vf_idx,
 			 bb_acc_device_status_str(accel_dev->dev_status[vf_idx]));
-	LOG(INFO, "5GUL counters: Code Blocks");
+	LOG_RESP(INFO, "5GUL counters: Code Blocks");
 	print_all_stat32(accel_dev, HWPfPermonACountVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
-	LOG(INFO, "5GUL counters: Data (Bytes)");
+	LOG_RESP(INFO, "5GUL counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonAKCntLoVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
-	LOG(INFO, "5GUL counters: Per Engine");
+	LOG_RESP(INFO, "5GUL counters: Per Engine");
 	print_all_stat32(accel_dev, HWPfPermonACbCountFec, ACC100_5GUL_ENGS, ACC100_PMON_OFF_2);
-	LOG(INFO, "5GDL counters: Code Blocks");
+	LOG_RESP(INFO, "5GDL counters: Code Blocks");
 	print_all_stat32(accel_dev, HWPfPermonBCountVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
-	LOG(INFO, "5GDL counters: Data (Bytes)");
+	LOG_RESP(INFO, "5GDL counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonBKCntLoVf, accel_dev->numvfs, ACC100_PMON_OFF_1);
-	LOG(INFO, "5GDL counters: Per Engine");
+	LOG_RESP(INFO, "5GDL counters: Per Engine");
 	print_all_stat32(accel_dev, HWPfPermonBCbCountFec, ACC100_5GDL_ENGS, ACC100_PMON_OFF_2);
 }
 

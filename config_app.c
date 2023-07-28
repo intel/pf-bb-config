@@ -135,6 +135,9 @@ get_device_id(hw_device *device, const char *location)
 			device_id == device->device_id);
 }
 
+/* Function to iterate through all PCI devices to find the address of the requested device.
+ * If a specific PCI address was passed as argument, then this function will confirm its validity.
+ */
 static int
 probe_pci_bus(hw_device *device, char **found_devices)
 {
@@ -147,48 +150,49 @@ probe_pci_bus(hw_device *device, char **found_devices)
 	if (dir == NULL)
 		return -1;
 
-	/* Iterate Through Directories */
-	while ((dirent = readdir(dir)) != NULL) {
-
-		/* Omit Current Directory and Previous Directory Lookup */
-		if (strncmp(dirent->d_name, CUR_DIR,
-				strlen(dirent->d_name)) == 0 ||
-				strncmp(dirent->d_name, PREV_DIR,
-						strlen(dirent->d_name)) == 0)
-			continue;
-		/* Check if current device matches requested device */
-		if (get_device_id(device, dirent->d_name)) {
-			found_devices[num_devices] =
-					(char *) malloc(PCI_STR_SIZE);
+	/* If specific PCI address was passed as argument. */
+	if (device->pci_address[0] != 0) {
+		/* Handle the case when the node prefix 0000: is not included */
+		if (strlen(device->pci_address) == 7) {
+			char tmp[PCI_STR_SIZE];
+			strcpy(tmp, "0000:");
+			strcat(tmp, device->pci_address);
+			strcpy(device->pci_address, tmp);
+		}
+		/* Check if this candidate device matches specified PCI address. */
+		if (get_device_id(device, device->pci_address)) {
+			found_devices[num_devices] = (char *) malloc(PCI_STR_SIZE);
 			/* Copy PCI slot of device */
-			strncpy(found_devices[num_devices], dirent->d_name,
+			strncpy(found_devices[num_devices], device->pci_address,
 					sizeof(device->pci_address) - NULL_PAD);
-			num_devices++;
+			num_devices = 1;
+		}
+	}
+	else {
+		/* Iterate Through Directories */
+		while ((dirent = readdir(dir)) != NULL) {
+
+			/* Omit Current Directory and Previous Directory Lookup */
+			if (strncmp(dirent->d_name, CUR_DIR,
+					strlen(dirent->d_name)) == 0 ||
+					strncmp(dirent->d_name, PREV_DIR,
+							strlen(dirent->d_name)) == 0)
+				continue;
+			/* Check if current device matches requested device */
+			if (get_device_id(device, dirent->d_name)) {
+				found_devices[num_devices] =
+						(char *) malloc(PCI_STR_SIZE);
+				/* Copy PCI slot of device */
+				strncpy(found_devices[num_devices], dirent->d_name,
+						sizeof(device->pci_address) - NULL_PAD);
+				num_devices++;
+			}
 		}
 	}
 
 	closedir(dir);
 
 	return num_devices;
-}
-
-static int
-match_device(char *pci_address, char **found_devices, int num_devices)
-{
-	int i, null_prefix = 0;
-
-	/* Handle the case when the node prefix 0000: is not included */
-	if (strlen(pci_address) == 7)
-		null_prefix = 5;
-
-	for (i = 0; i < num_devices; i++) {
-		if (!strncmp(pci_address, found_devices[i] + null_prefix,
-				sizeof(pci_address) - NULL_PAD))
-			return 0;
-	}
-
-	printf("ERR: Given PCI ID is not available %s\n", pci_address);
-	return -1;
 }
 
 static int
@@ -267,9 +271,10 @@ int set_device(hw_device *device)
 		} else {
 			device->ops.get_bar0_addr = uio_get_bar0_mapping;
 		}
-		if (device->config_file == NULL) {
+		if (device->config_file == NULL)
 			device->config_file = "vrb1/vrb1_config.cfg";
-		}
+		if (device->fft_lut_filename == NULL)
+			device->fft_lut_filename = "./vrb1/srs_fft_windows_coefficient.bin";
 		return 0;
 	}
 
@@ -336,6 +341,7 @@ print_helper(const char *prgname)
 			" -c CFG_FILE \t specifies configuration file to use\n"
 			" -p PCI_ID \t specifies PCI ID of device to configure ([0000:]51:00.0)\n"
 			" -v VFIO_TOKEN \t VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci\n"
+			" -f FFT_LUT_FILE \t specifies the FFT LUT bin file to use\n"
 			" -h \t\t prints this helper\n\n", prgname);
 }
 
@@ -351,7 +357,7 @@ bbdev_parse_args(int argc, char **argv,
 	}
 	device->device_name = argv[1];
 
-	while ((opt = getopt(argc, argv, "c:p:v:h")) != -1) {
+	while ((opt = getopt(argc, argv, "c:p:v:f:h")) != -1) {
 		switch (opt) {
 		case 'c':
 			device->config_file = optarg;
@@ -367,6 +373,10 @@ bbdev_parse_args(int argc, char **argv,
 			device->vfio_mode = 1;
 			if (vfio_uuid_parse(optarg, device->vfio_vf_token) < 0)
 				return 1;
+			break;
+
+		case 'f':
+			device->fft_lut_filename = optarg;
 			break;
 
 		case 'h':
@@ -425,7 +435,8 @@ main(int argc, char *argv[])
 	int i, ret = 0, num_devices;
 	hw_device device;
 	char *found_devices[10];
-	char logFile[BB_ACC_LOG_FILE_LEN];
+	char log_file_main[BB_ACC_LOG_FILE_LEN];
+	char log_file_resp[BB_ACC_LOG_FILE_LEN];
 
 	memset(&device, 0, sizeof(device));
 
@@ -451,16 +462,13 @@ main(int argc, char *argv[])
 		return num_devices;
 	}
 
-	if (device.pci_address[0] != 0) {
-		if (match_device(device.pci_address, found_devices,
-				num_devices) < 0)
-			return -1;
-	}
-
 	select_device(&device, found_devices, num_devices);
-	sprintf(logFile, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
+	sprintf(log_file_main, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
 			device.pci_address);
-	if (bb_acc_logInit(logFile, BB_ACC_MAX_LOG_FILE_SIZE, INFO, device.vfio_mode)) {
+	sprintf(log_file_resp, "%s/pf_bb_cfg_%s_response.log", BB_ACC_DEFAULT_LOG_PATH,
+			device.pci_address);
+	if (bb_acc_logInit(log_file_main, log_file_resp, BB_ACC_MAX_LOG_FILE_SIZE,
+			INFO, device.vfio_mode)) {
 		printf("ERR: Logfile init failed\n");
 		return -1;
 	}

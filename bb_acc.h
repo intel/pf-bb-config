@@ -114,6 +114,7 @@ enum bb_acc_device_status {
 enum bb_acc_device_request {
 	REQ_DEV_STATUS = 1,        /**< Request the device status report */
 	REQ_DEV_NEW = 2,           /**< New VF device being used */
+	REQ_DEV_LUT_VER = 3,       /**< Request the device LUT version number. */
 };
 
 /* Function pointers for bb dev operations */
@@ -135,6 +136,7 @@ struct bb_acc_operations {
 typedef struct hw_device {
 	const char *device_name;
 	char *config_file;
+	char *fft_lut_filename;
 	int vendor_id;
 	int device_id;
 	char pci_address[PCI_STR_SIZE];
@@ -163,6 +165,7 @@ typedef struct hw_device {
 	int auto_reconfig_on_fatal_error;
 	int device_reset_using_flr;
 	int numvfs;
+	uint16_t fft_version_md5sum;
 
 } hw_device;
 
@@ -211,6 +214,7 @@ extern int update_reset_mode(void *dev, int mode);
 extern int auto_reset_mode(void *dev, int mode);
 
 extern void clear_log_file(void *dev);
+extern void clear_log_resp_file(void *dev);
 extern void exit_app_mode(void *dev);
 extern int acc_reg_dump(void *dev, int devId);
 extern int acc_mem_read(void *dev, int rwFlag, int regAddr, int wPayload);
