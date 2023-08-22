@@ -42,6 +42,12 @@
 #define VRB1_QOS_B_END     0xBA00E0
 #define VRB1_QOS_C_START   0xBB00C0
 #define VRB1_QOS_C_END     0xBB00E0
+#define VRB2_QMGR_BA_START 0xA08000
+#define VRB2_QMGR_BA_END   0xA0A000
+#define VRB2_ARAM_START    0x818000
+#define VRB2_ARAM_END      0x820000
+#define VRB2_MLD_START     0xB5E000
+#define VRB2_MLD_END       0xB60000
 
 static uint32_t
 reg_read(uint8_t *mmio_base, uint32_t offset)
@@ -318,6 +324,23 @@ vrb1_reg_dump(hw_device *accel_dev,
 	return 0;
 }
 
+int
+vrb2_reg_dump(hw_device *accel_dev,
+		struct vrb2_reg_dump_info *rd_db,
+		int num_regs)
+{
+	int i = 0;
+	int payload = 0;
+	for (i = 0; i < num_regs; i++) {
+		payload = reg_read(
+				accel_dev->bar0Addr,
+				rd_db[i].reg_offset);
+		LOG_RESP(INFO, "%s\t\t, 0x%08x, 0x%08x", rd_db[i].reg_name,
+				rd_db[i].reg_offset, payload);
+	}
+	return 0;
+}
+
 int acc_reg_dump(void *dev, int devType)
 {
 	hw_device *device = (hw_device *)dev;
@@ -335,6 +358,9 @@ int acc_reg_dump(void *dev, int devType)
 	} else if (devType == VRB1_DEVICE_ID) {
 		num = sizeof(vrb1_rd_db) / sizeof(struct vrb1_reg_dump_info);
 		vrb1_reg_dump(device, vrb1_rd_db, num);
+	} else if (devType == VRB2_DEVICE_ID) {
+		num = sizeof(vrb2_rd_db) / sizeof(struct vrb2_reg_dump_info);
+		vrb2_reg_dump(device, vrb2_rd_db, num);
 	} else
 		LOG_RESP(ERR, "Wrong Device for ref_dump!");
 
@@ -353,28 +379,51 @@ int acc_mem_read(void *dev, int rwFlag, int regAddr, int wPayload)
 	if (device->device_id == VRB1_DEVICE_ID) {
 		if ((regAddr >= VRB1_QMGR_BA_START) && (regAddr < VRB1_QMGR_BA_END)) {
 			LOG_RESP(ERR, "Invalid Address for VRB1 0x%x", regAddr);
+			LOG_RESP_END();
 			return 0;
 		}
 		if ((regAddr >= VRB1_ARAM_START) && (regAddr < VRB1_ARAM_END)) {
 			LOG_RESP(ERR, "Invalid ARAM Address for VRB1 0x%x", regAddr);
+			LOG_RESP_END();
 			return 0;
 		}
 		if ((regAddr >= VRB1_QOS_A_START) && (regAddr < VRB1_QOS_A_END)) {
 			LOG_RESP(ERR, "Invalid QoS A Address for VRB1 0x%x", regAddr);
+			LOG_RESP_END();
 			return 0;
 		}
 		if ((regAddr >= VRB1_QOS_B_START) && (regAddr < VRB1_QOS_B_END)) {
 			LOG_RESP(ERR, "Invalid QoS B Address for VRB1 0x%x", regAddr);
+			LOG_RESP_END();
 			return 0;
 		}
 		if ((regAddr >= VRB1_QOS_C_START) && (regAddr < VRB1_QOS_C_END)) {
 			LOG_RESP(ERR, "Invalid QoS C Address for VRB1 0x%x", regAddr);
+			LOG_RESP_END();
+			return 0;
+		}
+	}
+	if (device->device_id == VRB2_DEVICE_ID) {
+		if ((regAddr >= VRB2_QMGR_BA_START) && (regAddr < VRB2_QMGR_BA_END)) {
+			LOG_RESP(ERR, "Invalid Address for VRB2 0x%x", regAddr);
+			LOG_RESP_END();
+			return 0;
+		}
+		if ((regAddr >= VRB2_ARAM_START) && (regAddr < VRB2_ARAM_END)) {
+			LOG_RESP(ERR, "Invalid ARAM Address for VRB2 0x%x", regAddr);
+			LOG_RESP_END();
+			return 0;
+		}
+		if ((regAddr >= VRB2_MLD_START) && (regAddr < VRB2_MLD_END)) {
+			LOG_RESP(ERR, "Invalid MLD Address for VRB2 0x%x", regAddr);
+			LOG_RESP_END();
 			return 0;
 		}
 	}
 
 	if (regAddr >= device->bar_size) {
 		LOG_RESP(ERR, "Invalid address range for PF BAR 0x%x", regAddr);
+		LOG_RESP_END();
 		return 0;
 	}
 
@@ -426,6 +475,8 @@ void acc_device_data(void *dev)
 		acc100_device_data(device);
 	else if (device->device_id == VRB1_DEVICE_ID)
 		vrb1_device_data(device);
+	else if (device->device_id == VRB2_DEVICE_ID)
+		vrb2_device_data(device);
 	LOG_RESP_END();
 }
 

@@ -25,7 +25,7 @@ The application requires the name of the BBDEV device to configure. Other
 arguments are optional.
 The application executes as follows:
 
-    ./pf_bb_config DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]
+    ./pf_bb_config DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN] [-f FFT_LUT_FILE]
 
 * `DEVICE_NAME`: Specifies the device to configure; for example: 'FPGA_5GNR' or 'ACC100' or 'VRB1'
 * `-h`: Prints help
@@ -52,7 +52,8 @@ The example in this section uses the vfio-pci module and assumes that
 Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is enabled.
 
 First the vfio-pcio module must be loaded with the required parameters and
-there are a few methods available to do this:
+there are a few methods available to do this. Note that setting disable_idle_d3
+is only strictly required for ACC100.
 
 * When the module is built-in, it is automally loaded at boot time
 and the parameters can be passed automatically through the kernel cmdline (grub):
@@ -118,7 +119,7 @@ page (https://www.kernel.org/doc/Documentation/vfio.txt).
 There is also valuable information regards linux drivers in the DPDK documentation
 https://doc.dpdk.org/guides/linux_gsg/linux_drivers.html
 
-### Using igb_uio driver
+### Using igb_uio driver (legacy)
 
 The example in this section uses the igb_uio module and assumes that
 Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is disabled.
@@ -149,17 +150,22 @@ From DPDK 20.11, the previous command must be updated as follows:
 
     ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
 
-## Details for VRB1 Configuration (Intel® vRAN Boost v1.0 for 4th Gen Intel Xeon Scalable Processor)
+## Details for VRB1/2 Configuration (Intel® vRAN Boost)
 
-* A number of configuration file examples are available in the acc200 directory.
+* Note that VRB1 refers to Intel® vRAN Boost v1.0 for 4th Gen Intel Xeon Scalable Processor
+(SPR-EE), while VRB2 refers to Intel® vRAN Boost v2.0 for Intel® Xeon® D Processor (GNR-D).
+The bbdev PMDs are described in DPDK (https://doc.dpdk.org/guides/bbdevs/vrb1.html
+https://doc.dpdk.org/guides/bbdevs/vrb2.html)
+
+* A number of configuration file examples are available in the vrb1 and vrb2 directories.
 These examples include the following parameters, which can be modified for a
 specific use case.
 
 * The `pf_mode_en` parameter refers to the case for which the workload is run
 from PF, or alternatively from the VF (Single Root I/O Virtualization (SR-IOV)).
-Default usage is using SR-IOV.
+Default usage is using SR-IOV hence this would be set to 0.
 
-* There are sixteen Queue Groups (QGroups) available (made of up to 16 queues
+* On VRB1 there are 16 Queue Groups (QGroups) available (made of up to 16 queues
 x 16 VFs each), which can be allocated to any available operation
 (4GUL/4GDL/5GUL/5GDL/FFT) based on the `num_qgroups` parameter.
 For example, 4x QGroups for 5GUL and 4x QGroups for 5GDL can be allocated when
@@ -173,18 +179,30 @@ is the number of VF bundles.).
 
 * The `num_aqs_per_groups` defines the number of atomic queues within a VF
 bundle for a given QGroup.
-The range is 1 to 16, with 16 being the default and recommended value.
+The range is 1 to 16 on VRB1, with 16 being the default and recommended value.
 There can be a maximum of 16 * 16 * 16 = 4K total queues.
 
-* An example of default configuration file may be acc200/acc200_config_16vf.cfg which includes
+* An example of default configuration file may be vrb1/vrb1_config_16vf.cfg which includes
 the configuration for 16 VFs in SRIOV mode with a total of 16 x 16 queues per VF covering
 all the possible processing engine functions.
 
+    ./pf_bb_config VRB1 -v 00112233-4455-6677-8899-aabbccddeeff -c vrb1/vrb1_config_16vf.cfg
+
+* On VRB2 the number of supported queues is increased compared to VRB1:
+the total number of QGroups is increased from 16 to 32,
+and the number of AQs per group from 16 to 64 and the number of VF bundles from 16 to 64.
+This also now support a new set of queue for MLD-TS operation type.
+A default reference configuration file to consider is vrb2/vrb2_config_vf.cfg.
+
+    ./pf_bb_config VRB2 -v 00112233-4455-6677-8899-aabbccddeeff -c vrb2/vrb2_config_vf.cf
+
 * The FFT engines includes an internal memory used to define the semi-static windowing parameters.
-The content of that table is loaded from binary files vrb1/srs_fft_windows_coefficient.bin
+The content of that table is loaded from binary files vrbx/srs_fft_windows_coefficient.bin
 (up to 1024 points across 16 windows and 7 iDFT sizes).
 
-## Error reporting and recovery (specific to VRB1)
+* It is recommended to use vfio-pci to benefit from all Intel vRAN Boost features in pf_bb_config.
+
+## Error reporting and recovery (specific to VRB1 and VRB2)
 
 It is not expected for the accelerator to get into a bad state under any condition. Still
 the pf_bb_config supports the capability of detecting, reporting and recovering any

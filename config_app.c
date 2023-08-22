@@ -278,6 +278,38 @@ int set_device(hw_device *device)
 		return 0;
 	}
 
+	if (strcasecmp(device->device_name, "vrb2") == 0) {
+		device->vendor_id = VRB2_VENDOR_ID;
+		device->device_id = VRB2_DEVICE_ID;
+		device->ops.conf = vrb2_configure;
+		device->ops.device_data  = vrb2_device_data;
+		device->bar_size = 0x1000000;
+
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.flr = vfio_device_reset;
+			device->ops.cluster_reset = vrb2_cluster_reset;
+			device->ops.enable_intr = vfio_enable_intr;
+			device->ops.disable_intr = vfio_disable_intr;
+			device->ops.dev_enable_intr = vrb2_enable_intr;
+			device->ops.dev_disable_intr = vrb2_disable_intr;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+			device->ops.dev_isr = vrb2_irq_handler;
+			device->vfio_int_mode = VFIO_PCI_MSI_IRQ_INDEX;
+			device->auto_reconfig_on_fatal_error = DEVICE_RESET_AUTO_RECONFIG;
+			device->device_reset_using_flr = DEVICE_RESET_USING_CLUSTER;
+			device->info_ring_total_size = BB_ACC_INFO_RING_SIZE;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
+
+		if (device->config_file == NULL)
+			device->config_file = "vrb2/vrb2_config_vf.cfg";
+		if (device->fft_lut_filename == NULL)
+			device->fft_lut_filename = "./vrb2/srs_fft_windows_coefficient.bin";
+		return 0;
+	}
+
 	if (strcasecmp(device->device_name, "fpga_lte") == 0) {
 		device->vendor_id = FPGA_LTE_FEC_VENDOR_ID;
 		device->device_id = FPGA_LTE_FEC_DEVICE_ID;

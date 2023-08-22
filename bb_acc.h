@@ -55,6 +55,8 @@
 #define ACC100_DEVICE_ID        0x0D5C
 #define VRB1_VENDOR_ID          0x8086
 #define VRB1_DEVICE_ID          0x57C0
+#define VRB2_VENDOR_ID          0x8086
+#define VRB2_DEVICE_ID          0x57C2
 #define FPGA_LTE_FEC_VENDOR_ID  0x1172
 #define FPGA_LTE_FEC_DEVICE_ID  0x5052
 #define FPGA_5GNR_FEC_VENDOR_ID 0x8086
@@ -68,6 +70,7 @@
 #define VFIO_IRQ_SET_BUF_LEN  (sizeof(struct vfio_irq_set) + sizeof(int))
 
 #define BB_ACC_MAX_VFS              64
+#define BB_ACC_MAX_WIN              16
 
 #define BB_ACC_PF_TO_VF_DBELL_REG_OFFSET 0x100
 
@@ -90,6 +93,10 @@
 
 #define BB_ACC_FIRST_CFG true
 #define BB_ACC_RECFG     false
+
+#define BB_ACC_FFT_1k       (1024)
+#define BB_ACC_FFT_WRAP1 (1024 + 512)
+#define BB_ACC_FFT_WRAP2 (512 - 1)
 
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 
@@ -115,6 +122,9 @@ enum bb_acc_device_request {
 	REQ_DEV_STATUS = 1,        /**< Request the device status report */
 	REQ_DEV_NEW = 2,           /**< New VF device being used */
 	REQ_DEV_LUT_VER = 3,       /**< Request the device LUT version number. */
+	REQ_DEV_FFT_WIN_SIZE = 4,  /**< Request window width. */
+	REQ_DEV_FFT_WIN_START = 5,  /**< Request window start point. */
+	REQ_DEV_MASK = 0xFFFF
 };
 
 /* Function pointers for bb dev operations */
@@ -166,7 +176,8 @@ typedef struct hw_device {
 	int device_reset_using_flr;
 	int numvfs;
 	uint16_t fft_version_md5sum;
-
+	int fft_win_start[BB_ACC_MAX_WIN];
+	int fft_win_size[BB_ACC_MAX_WIN];
 } hw_device;
 
 #define PCI_VENDOR_ID		0x00	/* 16 bits */
@@ -260,6 +271,33 @@ extern int vrb1_get_info_ring_size(void);
 
 extern void
 vrb1_device_data(void *dev);
+
+/*
+ * Configure VRB2
+ */
+extern int
+vrb2_configure(void *dev, void *bar0addr, const char *arg_cfg_filename, const bool first_cfg);
+
+extern int
+vrb2_enable_intr(void *);
+
+extern int
+vrb2_disable_intr(void *);
+
+extern int
+vrb2_irq_handler(void *dev);
+
+extern void
+vrb2_cluster_reset(void *dev);
+
+extern int
+vrb2_get_info_ring_size(void);
+
+extern void
+vrb2_device_data(void *dev);
+
+extern void
+vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev);
 
 /*
  * Configure FPGA

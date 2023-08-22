@@ -89,6 +89,7 @@ struct auto_reset_req {
 
 #define DEVICE_ID_ACC100	0x0D5C
 #define DEVICE_ID_VRB1	0x57C0
+#define DEVICE_ID_VRB2	0x57C2
 
 struct reg_dump_req {
 	unsigned int device_id;

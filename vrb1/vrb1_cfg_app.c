@@ -142,6 +142,7 @@ vrb1_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 {
 	hw_device *accel_dev = (hw_device *)dev;
 	uint8_t *bar0addr = accel_dev->bar0Addr;
+	unsigned int window_index;
 
 	LOG(DEBUG, "Doorbell vf2pf %d", payload);
 
@@ -163,8 +164,21 @@ vrb1_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 	/* Reports a version number based on the used FFT LUT binary file. */
 	if (payload == REQ_DEV_LUT_VER) {
 		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf +
-				BB_ACC_PF_TO_VF_DBELL_REG_OFFSET * vf_index,
+				vf_index * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET,
 				(uint32_t)accel_dev->fft_version_md5sum);
+	}
+	/* Reports Window sizes based on the used FFT LUT binary file. */
+	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_SIZE) {
+		window_index = payload >> 16;
+		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf
+				+ vf_index * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET,
+				(uint32_t)accel_dev->fft_win_size[window_index]);
+	}
+	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_START) {
+		window_index = payload >> 16;
+		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf
+				+ vf_index * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET,
+				(uint32_t)accel_dev->fft_win_start[window_index]);
 	}
 	if (payload == REQ_DEV_NEW && accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_CONFIGURED) {
 		accel_dev->dev_status[vf_index] = RTE_BBDEV_DEV_ACTIVE;
@@ -423,6 +437,7 @@ static int
 vrb1_fft_reconfig(uint8_t *d, bool lut_programming, hw_device *accel_pci_dev)
 {
 	int16_t gTDWinCoff[VRB1_LUT_SIZE], ret, offset, i, pageIdx;
+	int16_t win_start, win_size, offset_i, win;
 	const char *lut_filename;
 	FILE *fp;
 	bool unsafe_path;
@@ -470,6 +485,24 @@ vrb1_fft_reconfig(uint8_t *d, bool lut_programming, hw_device *accel_pci_dev)
 
 	vrb1_reg_fast_write(d, HWPfFftRamPageAccess, VRB1_FFT_RAM_DIS);
 	fclose(fp);
+
+	/* Check window content for 1k FFT window. */
+	offset_i = BB_ACC_MAX_WIN * (16 + 32 + 64 + 128 + 256 + 512);
+	for (win = 0;  win < BB_ACC_MAX_WIN; win++) {
+		win_size = 0;
+		win_start = 0;
+		for (i = 0; i < BB_ACC_FFT_1k; i++) {
+			if (gTDWinCoff[offset_i + ((BB_ACC_FFT_WRAP1 - i) % BB_ACC_FFT_1k)] > 0) {
+				win_size++;
+				win_start = BB_ACC_FFT_WRAP2 - i;
+			}
+		}
+		win_size = MAX(1, win_size);
+		accel_pci_dev->fft_win_size[win] = win_size;
+		accel_pci_dev->fft_win_start[win] = win_start;
+		if (win == 0)
+			LOG(INFO, "  FFT Window %d Size %d Start %d", win, win_size, win_start);
+	}
 
 	vrb_fft_lut_md5sum(lut_filename, accel_pci_dev);
 
@@ -748,6 +781,8 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 		address = HWPfQmgrTholdGrp + sizeof(uint32_t) * qg_idx;
 		value = (1 << 16) + (1 << (vrb1_aq_depth(qg_idx, vrb1_conf) - 1));
 		vrb1_reg_fast_write(d, address, value);
+		address = HWPfQmgrArbQDepthGrp + sizeof(uint32_t) * qg_idx;
+		vrb1_reg_fast_write(d, address, VRB1_ARB_QDEPTH);
 	}
 
 	/* Template Priority in incremental order */
@@ -979,7 +1014,7 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	/* Clear explictly the VF2PF doorbells */
 	for (vf_idx = 0; vf_idx < VRB1_NUM_VFS; vf_idx++) {
 		status = vrb1_reg_read(d, HWPfHiVfToPfDbellVf +
-				BB_ACC_PF_TO_VF_DBELL_REG_OFFSET * vf_idx);
+				vf_idx * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET);
 	}
 
 	/* Authorize the OOBMSM Telemetry. */

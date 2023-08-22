@@ -1,16 +1,23 @@
 pf_bb_config Release Note
 =========================
 
+23.11 new features and fixes
+----------------------------
+* Initial support for Intel vRAN Boost v2 on GNR-D (Early Access Pre-Alpha).
+* Expose the FFT windowing configuration towards bbdev-api PMD and respective window sizes.
+* Fix: Increase the default arbitration FIFO depth.
+* Fix: Response string missing for invalid address request.
+
 23.07 new features and fixes
 ----------------------------
 * Intel vRAN Boost v1 update to FFT windowing:
  * Update of the default FFT windowing bin file for VRB1.
- * Adding option to point to path of the FFT  windowing bin file
+ * Adding option to point to path of the FFT windowing bin file.
  * Support to expose the FFT window bin version number towards bbdev.
 * Log management update. The device telemetry is now captured in a distinct file from the main log.
 * Clean socket file in case still present after ungraceful exit.
 * Protection to avoid illegal MMIO access.
-* Fix to the -p option to allow a specific PCIe address to used.
+* Fix to the -p option to allow a specific PCIe address to use.
 * Fix to exception from negative test and coverity warning.
 
 23.03 new features and fixes

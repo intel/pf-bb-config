@@ -38,6 +38,7 @@
 #define VRB1_TMPL_PRI_2 0x0b0a0908
 #define VRB1_TMPL_PRI_3 0x0f0e0d0c
 #define VRB1_WORDS_IN_ARAM_SIZE (256 * 1024 / 4)
+#define VRB1_ARB_QDEPTH 2
 
 #define VRB1_SIG_UL_5G       0
 #define VRB1_SIG_UL_5G_LAST  4

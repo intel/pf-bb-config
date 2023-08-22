@@ -145,9 +145,11 @@ bb_acc_reset_logFile(char *file_name, int log_type)
 	memset(sysCmd, 0, sizeof(sysCmd));
 	if (logCtl.main_fp == NULL)
 		return;
-	sprintf(sysCmd, "sudo truncate -s 0 %s", file_name);
-	if (system(sysCmd))
+	sprintf(sysCmd, "truncate -s 0 %s", file_name);
+	if (system(sysCmd)) {
 		perror("Failed to clear the log file");
+		return;
+	}
 	if (log_type == 0)
 		fseek(logCtl.main_fp, 0, SEEK_SET);
 	else
