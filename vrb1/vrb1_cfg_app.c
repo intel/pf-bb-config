@@ -404,6 +404,44 @@ vrb1_qtopFromAcc(struct q_topology_t **qtop, int acc_enum,
 	*qtop = p_qtop;
 }
 
+/* Check LUT content for FFT windows. */
+void
+vrb_fft_win_check(int16_t *gTDWinCoff, hw_device *accel_pci_dev)
+{
+	int16_t i, offset_p = 0, offset_i, fft_sz, lut_sz, wrap1, wrap2, win_start, win_size, win;
+
+	for (fft_sz = 32; fft_sz <= 2048; fft_sz *= 2) {
+		/*
+		 * Manage FFT wrap for negative and positive halves.
+		 * Each table width is fft_sz / 2.
+		 */
+		lut_sz = fft_sz / 2;
+		wrap1 = lut_sz / 2 * 3;
+		wrap2 = lut_sz / 2;
+		for (win = 0;  win < BB_ACC_MAX_WIN; win++) {
+			offset_i = BB_ACC_MAX_WIN * offset_p + win * lut_sz;
+			win_size = 0;
+			win_start = 0;
+			/* Check non null value in LUT for size and start of window shape. */
+			for (i = 0; i < lut_sz; i++) {
+				if (gTDWinCoff[offset_i + ((wrap1 - i) % lut_sz)] > 0) {
+					win_size++;
+					win_start = wrap2 - i;
+				}
+			}
+			win_size = MAX(1, win_size);
+			if (fft_sz == 2048) {
+				accel_pci_dev->fft_win_size[win] = win_size;
+				accel_pci_dev->fft_win_start[win] = win_start;
+			}
+			if ((win == 0) && (fft_sz == 2048))
+				LOG(INFO, "  FFT Size %d Window %d Size %d Start %d",
+						fft_sz, win, win_size, win_start);
+		}
+		offset_p += lut_sz;
+	}
+}
+
 void
 vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev)
 {
@@ -437,7 +475,6 @@ static int
 vrb1_fft_reconfig(uint8_t *d, bool lut_programming, hw_device *accel_pci_dev)
 {
 	int16_t gTDWinCoff[VRB1_LUT_SIZE], ret, offset, i, pageIdx;
-	int16_t win_start, win_size, offset_i, win;
 	const char *lut_filename;
 	FILE *fp;
 	bool unsafe_path;
@@ -486,23 +523,7 @@ vrb1_fft_reconfig(uint8_t *d, bool lut_programming, hw_device *accel_pci_dev)
 	vrb1_reg_fast_write(d, HWPfFftRamPageAccess, VRB1_FFT_RAM_DIS);
 	fclose(fp);
 
-	/* Check window content for 1k FFT window. */
-	offset_i = BB_ACC_MAX_WIN * (16 + 32 + 64 + 128 + 256 + 512);
-	for (win = 0;  win < BB_ACC_MAX_WIN; win++) {
-		win_size = 0;
-		win_start = 0;
-		for (i = 0; i < BB_ACC_FFT_1k; i++) {
-			if (gTDWinCoff[offset_i + ((BB_ACC_FFT_WRAP1 - i) % BB_ACC_FFT_1k)] > 0) {
-				win_size++;
-				win_start = BB_ACC_FFT_WRAP2 - i;
-			}
-		}
-		win_size = MAX(1, win_size);
-		accel_pci_dev->fft_win_size[win] = win_size;
-		accel_pci_dev->fft_win_start[win] = win_start;
-		if (win == 0)
-			LOG(INFO, "  FFT Window %d Size %d Start %d", win, win_size, win_start);
-	}
+	vrb_fft_win_check(gTDWinCoff, accel_pci_dev);
 
 	vrb_fft_lut_md5sum(lut_filename, accel_pci_dev);
 
@@ -951,30 +972,25 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	vrb1_reg_fast_write(d, address, value);
 
 	for (vf_idx = 0; vf_idx < vrb1_conf->num_vf_bundles; vf_idx++) {
-		address = HWPfPermonACntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx;
-		value = 0x1; /* Reset */
-		vrb1_reg_fast_write(d, address, value);
-		address = HWPfPermonACntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx;
-		value = 0x2; /* Start */
-		vrb1_reg_fast_write(d, address, value);
-		address = HWPfPermonBCntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx;
-		value = 0x1; /* Reset */
-		vrb1_reg_fast_write(d, address, value);
-		address = HWPfPermonBCntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx;
-		value = 0x2; /* Start */
-		vrb1_reg_fast_write(d, address, value);
+		for (acc = 0; acc < VRB1_MON_NUMS; acc++) {
+			address = HWPfPermonACntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx
+					+ acc * VRB1_MON_OFFSET;
+			value = 0x1; /* Reset */
+			vrb1_reg_fast_write(d, address, value);
+			address = HWPfPermonACntrlRegVf + VRB1_PERMON_CTRL_REG_VF_OFFSET * vf_idx
+					+ acc * VRB1_MON_OFFSET;
+			value = 0x2; /* Start */
+			vrb1_reg_fast_write(d, address, value);
+		}
 	}
 
-	address = HWPfPermonACbControlFec;
-	value = 0x1;
-	vrb1_reg_fast_write(d, address, value);
-	value = 0x2;
-	vrb1_reg_fast_write(d, address, value);
-	address = HWPfPermonBCbControlFec;
-	value = 0x1;
-	vrb1_reg_fast_write(d, address, value);
-	value = 0x2;
-	vrb1_reg_fast_write(d, address, value);
+	for (acc = 0; acc < VRB1_MON_NUMS; acc++) {
+		address = HWPfPermonACbControlFec + acc * VRB1_MON_OFFSET;
+		value = 0x1;
+		vrb1_reg_fast_write(d, address, value);
+		value = 0x2;
+		vrb1_reg_fast_write(d, address, value);
+	}
 
 	vrb1_reg_fast_write(d, HWPfPermonAControlBusMon, VRB1_BUSMON_RESET);
 	vrb1_reg_fast_write(d, HWPfPermonAConfigBusMon, (0 << 8) + 1); /* Group 0-1 */

@@ -415,7 +415,8 @@ vrb2_range_check(struct vrb2_conf *vrb2_conf)
 			vrb2_conf->q_ul_5g.num_qgroups +
 			vrb2_conf->q_dl_4g.num_qgroups +
 			vrb2_conf->q_dl_5g.num_qgroups +
-			vrb2_conf->q_fft.num_qgroups;
+			vrb2_conf->q_fft.num_qgroups +
+			vrb2_conf->q_mld.num_qgroups;
 	if (totalQgs > VRB2_NUM_QGRPS) {
 		printf("ERROR: Number of Qgroups %d > %d\n",
 				totalQgs, VRB2_NUM_QGRPS);
@@ -435,6 +436,8 @@ vrb2_range_check(struct vrb2_conf *vrb2_conf)
 	if (vrb2_queue_range_check(vrb2_conf->q_dl_5g) != 0)
 		return -1;
 	if (vrb2_queue_range_check(vrb2_conf->q_fft) != 0)
+		return -1;
+	if (vrb2_queue_range_check(vrb2_conf->q_mld) != 0)
 		return -1;
 	return 0;
 }

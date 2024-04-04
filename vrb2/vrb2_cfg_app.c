@@ -271,7 +271,6 @@ static int
 vrb2_fft_reconfig(uint8_t *d, int template_idx, bool lut_programming, hw_device *accel_pci_dev)
 {
 	int16_t gTDWinCoff[VRB2_LUT_SIZE], ret, offset, i, pageIdx;
-	int16_t win_start, win_size, offset_i, win;
 	const char *lut_filename;
 	FILE *fp;
 	bool unsafe_path;
@@ -329,23 +328,7 @@ vrb2_fft_reconfig(uint8_t *d, int template_idx, bool lut_programming, hw_device 
 	if (template_idx != 0)
 		return 0;
 
-	/* Check window content for 1k FFT window. */
-	offset_i = BB_ACC_MAX_WIN * (16 + 32 + 64 + 128 + 256 + 512);
-	for (win = 0;  win < BB_ACC_MAX_WIN; win++) {
-		win_size = 0;
-		win_start = 0;
-		for (i = 0; i < BB_ACC_FFT_1k; i++) {
-			if (gTDWinCoff[offset_i + ((BB_ACC_FFT_WRAP1 - i) % BB_ACC_FFT_1k)] > 0) {
-				win_size++;
-				win_start = BB_ACC_FFT_WRAP2 - i;
-			}
-		}
-		win_size = MAX(1, win_size);
-		accel_pci_dev->fft_win_size[win] = win_size;
-		accel_pci_dev->fft_win_start[win] = win_start;
-		if (win == 0)
-			LOG(INFO, "  FFT Window %d Size %d Start %d", win, win_size, win_start);
-	}
+	vrb_fft_win_check(gTDWinCoff, accel_pci_dev);
 
 	vrb_fft_lut_md5sum(lut_filename, accel_pci_dev);
 
@@ -429,7 +412,7 @@ vrb2_device_error(void *dev, int int_src)
 		vrb2_reg_write(bar0addr, HWPfDmaProcTmOutCnt + eng_type * 4, VRB2_PROC_TIMEOUT);
 	vrb2_reg_write(bar0addr, HWPfQmgrAramWatchdogCount, VRB2_QMGR_ARAM_TIMEOUT);
 	vrb2_reg_write(bar0addr, HWPfQmgrAxiWatchdogCount, VRB2_QMGR_AXI_TIMEOUT);
-	vrb2_reg_write(bar0addr, HWPfQmgrProcessWatchdogCount, VRB2_CLUST_TIMEOUT);
+	vrb2_reg_write(bar0addr, HWPfQmgrProcessWatchdogCount, VRB2_QMGR_TIMEOUT);
 	vrb2_reg_write(bar0addr, HWPfDmaClusterHangThld, VRB2_CLUST_TIMEOUT);
 
 	if (fatal_error && (accel_dev->dev_status[0] != RTE_BBDEV_DEV_FATAL_ERR)) {
@@ -879,8 +862,8 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 	pg_config = (vrb2_conf->q_fft.num_qgroups == 0 ? 0x1 : 0) |
 			(vrb2_conf->q_mld.num_qgroups == 0 ? 0x2 : 0) |
-			(vrb2_conf->q_ul_5g.num_qgroups == 0 ? 0x4 : 0) |
-			(vrb2_conf->q_ul_4g.num_qgroups == 0 ? 0x8 : 0);
+			(vrb2_conf->q_ul_4g.num_qgroups == 0 ? 0x4 : 0) |
+			(vrb2_conf->q_ul_5g.num_qgroups == 0 ? 0x8 : 0);
 	status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 	if (status != pg_config) {
 		LOG(INFO, "Adjust PG on the device from %x to %x", status, pg_config);
@@ -961,7 +944,7 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	vrb2_reg_write(d, HWPfQmgrAramWatchdogCounterEn, 0xFFFFFFFF);
 	vrb2_reg_write(d, HWPfQmgrAxiWatchdogCount, VRB2_QMGR_AXI_TIMEOUT);
 	vrb2_reg_write(d, HWPfQmgrAxiWatchdogCounterEn, 0xFFFFFFFF);
-	vrb2_reg_write(d, HWPfQmgrProcessWatchdogCount, VRB2_CLUST_TIMEOUT);
+	vrb2_reg_write(d, HWPfQmgrProcessWatchdogCount, VRB2_QMGR_TIMEOUT);
 	vrb2_reg_write(d, HWPfQmgrProcessWatchdogCounterEn, 0xFFFFFFFF);
 	vrb2_reg_write(d, HWPfDmaClusterHangThld, VRB2_CLUST_TIMEOUT);
 
@@ -1247,30 +1230,23 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 		LOG(INFO, "Configuration in VF mode");
 
 	for (vf_idx = 0; vf_idx < vrb2_conf->num_vf_bundles; vf_idx++) {
-		address = HWPfPermonACntrlRegVf + 256 * vf_idx;
-		value = 0x1; /* Reset */
-		vrb2_reg_write(d, address, value);
-		address = HWPfPermonACntrlRegVf + 256 * vf_idx;
-		value = 0x2; /* Start */
-		vrb2_reg_write(d, address, value);
-		address = HWPfPermonBCntrlRegVf + 256 * vf_idx;
-		value = 0x1; /* Reset */
-		vrb2_reg_write(d, address, value);
-		address = HWPfPermonBCntrlRegVf + 256 * vf_idx;
-		value = 0x2; /* Start */
-		vrb2_reg_write(d, address, value);
+		for (acc = 0; acc < VRB2_MON_NUMS; acc++) {
+			address = HWPfPermonACntrlRegVf + 256 * vf_idx + acc * VRB2_MON_OFFSET;
+			value = 0x1; /* Reset */
+			vrb2_reg_write(d, address, value);
+			address = HWPfPermonACntrlRegVf + 256 * vf_idx + acc * VRB2_MON_OFFSET;
+			value = 0x2; /* Start */
+			vrb2_reg_write(d, address, value);
+		}
 	}
 
-	address = HWPfPermonACbControlFec;
-	value = 0x1;
-	vrb2_reg_write(d, address, value);
-	value = 0x2;
-	vrb2_reg_write(d, address, value);
-	address = HWPfPermonBCbControlFec;
-	value = 0x1;
-	vrb2_reg_write(d, address, value);
-	value = 0x2;
-	vrb2_reg_write(d, address, value);
+	for (acc = 0; acc < VRB2_MON_NUMS; acc++) {
+		address = HWPfPermonACbControlFec + acc * VRB2_MON_OFFSET;
+		value = 0x1;
+		vrb2_reg_write(d, address, value);
+		value = 0x2;
+		vrb2_reg_write(d, address, value);
+	}
 
 	vrb2_reg_write(d, HWPfPermonAControlBusMon, VRB2_BUSMON_RESET);
 	vrb2_reg_write(d, HWPfPermonAConfigBusMon, (0 << 8) + 1); /* Group 0-1 */
@@ -1567,7 +1543,7 @@ void vrb2_device_data(void *dev)
 	LOG_RESP(INFO, "MLD counters: Data (Bytes)");
 	print_all_stat32(accel_dev, HWPfPermonFKCntLoVf, accel_dev->numvfs, VRB2_PMON_OFF_1);
 	LOG_RESP(INFO, "MLD counters: Per Engine");
-	print_all_stat32(accel_dev, HWPfPermonFCbCountFec, VRB2_FFT_ENGS, VRB2_PMON_OFF_2);
+	print_all_stat32(accel_dev, HWPfPermonFCbCountFec, VRB2_MLD_ENGS, VRB2_PMON_OFF_2);
 	/* Bus Monitor */
 	vrb2_reg_write(bar0addr, HWPfPermonAControlBusMon, VRB2_BUSMON_STOP);
 	min = vrb2_reg_read(bar0addr, HWPfPermonAMinLatBusMon);

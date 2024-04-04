@@ -315,7 +315,13 @@ int set_device(hw_device *device)
 		device->device_id = FPGA_LTE_FEC_DEVICE_ID;
 		device->ops.conf = fpga_lte_configure;
 		device->bar_size = 0x1000;
-		device->ops.get_bar0_addr = uio_get_bar0_mapping;
+
+		if (device->vfio_mode) {
+			device->ops.open = vfio_device_open;
+			device->ops.get_bar0_addr = vfio_get_bar0_mapping;
+		} else {
+			device->ops.get_bar0_addr = uio_get_bar0_mapping;
+		}
 
 		if (device->config_file == NULL) {
 			device->config_file = "fpga_lte/fpga_lte_config.cfg";
@@ -504,13 +510,23 @@ main(int argc, char *argv[])
 		printf("ERR: Logfile init failed\n");
 		return -1;
 	}
+
+	/* Configure Device */
 	ret = configure_device(&device);
+	if (ret != 0) {
+		printf("ERR: Device configuration failed!\n");
+		if (device.vfio_mode)
+			printf("Log file = /var/log/pf_bb_cfg_%s.log\n", device.pci_address);
+		return ret;
+	}
 
 	/* Free memory for stored PCI slots */
 	for (i = 0; i < num_devices; i++)
 		free(found_devices[i]);
 
-	if (ret == 0 && device.vfio_mode) {
+	if (device.vfio_mode) {
+		printf("%s PF [%s] configuration complete!\n",
+				device.device_name, device.pci_address);
 		LOG(INFO, "Running in daemon mode for VFIO VF token");
 		printf("Log file = /var/log/pf_bb_cfg_%s.log\n", device.pci_address);
 		daemonize(&device);

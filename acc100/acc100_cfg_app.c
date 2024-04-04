@@ -785,6 +785,16 @@ acc100_write_config(void *dev, void *mapaddr, struct acc100_conf *acc100_conf)
 		}
 	}
 
+	/* Manage exception after a partial soft reboot on some platforms. */
+	if (acc100_reg_read(bar0addr, HWPfDmaStatusDmaHwErr) == 1) {
+		payload = acc100_reg_read(bar0addr, HWPfDmaStatusDmaHwErr);
+		status  = acc100_reg_read(bar0addr, HWPfHiIosf2axiErrLogReg);
+		LOG(ERR, "The device unexpectedly failed to initialize correctly (Error info 0x%08x 0x%08x).",
+				payload, status);
+		LOG(ERR, "PF FLR and reconfiguration of the device is required.");
+		return -1;
+	}
+
 	LOG(INFO, "PF ACC100 configuration complete");
 	return 0;
 }

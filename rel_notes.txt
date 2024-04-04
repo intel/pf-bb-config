@@ -1,6 +1,14 @@
 pf_bb_config Release Note
 =========================
 
+24.03 new features and fixes
+----------------------------
+* Update support for Intel vRAN Boost v2 on GNR-D (Early Access Alpha) including VRB2 fixes.
+* Refactor of the FFT window loading and documentation improvement of provided LUTs format.
+* ACC100: Add an error report in case of exception after partial soft reboot and reconfiguration.
+* Fix: Engines counters were not consistently exposed as part of Telemetry.
+* Fix: Support for N3000 LTE using vfio-pci.
+
 23.11 new features and fixes
 ----------------------------
 * Initial support for Intel vRAN Boost v2 on GNR-D (Early Access Pre-Alpha).

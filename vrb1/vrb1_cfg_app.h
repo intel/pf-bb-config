@@ -32,6 +32,8 @@
 #define MAX_ENQ_BATCH_SIZE              255
 #define VRB1_NUM_TMPL  32
 #define VF_OFFSET_QOS 16 /* offset in Memory Space specific to QoS Mon */
+#define VRB1_MON_OFFSET      0x10000
+#define VRB1_MON_NUMS        3
 #define VRB1_NUM_QOS   3
 #define VRB1_TMPL_PRI_0 0x03020100
 #define VRB1_TMPL_PRI_1 0x07060504

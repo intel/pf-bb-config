@@ -119,7 +119,7 @@ page (https://www.kernel.org/doc/Documentation/vfio.txt).
 There is also valuable information regards linux drivers in the DPDK documentation
 https://doc.dpdk.org/guides/linux_gsg/linux_drivers.html
 
-### Using igb_uio driver (legacy)
+### Using igb_uio driver on PF (legacy)
 
 The example in this section uses the igb_uio module and assumes that
 Intel® Virtualization Technology for Directed I/O (Intel® VT-d) is disabled.
@@ -135,7 +135,13 @@ Create 2 VFs from the PF using the exposed sysfs interface:
 Bind both VFs using either the igb_uio module (make sure that Intel® VT-d is
 disabled) or using the vfio-pci module (make sure that Intel® VT-d is enabled):
 
+* Binding the VFs to igb_uio
+
     $dpdkPath/usertools/dpdk-devbind.py --bind=igb_uio $vfPciDeviceAddr1 $vfPciDeviceAddr2
+
+* Binding the VFs to vfio-pci
+
+    $dpdkPath/usertools/dpdk-devbind.py --bind=vfio-pci $vfPciDeviceAddr1 $vfPciDeviceAddr2
 
 Configure the devices using the pf_bb_config application for VF usage with both
 5G and 4G enabled:
@@ -144,11 +150,11 @@ Configure the devices using the pf_bb_config application for VF usage with both
 
 Test that the VF is functional on the device using bbdev-test:
 
-    ../../${RTE_TARGET}/app/testbbdev -c F0 -w${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
-
-From DPDK 20.11, the previous command must be updated as follows:
-
     ../../build/app/dpdk-test-bbdev -c F0 -a${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
+
+For DPDK versions older than 20.11, the previous command must be modified as follows:
+
+    ../../${RTE_TARGET}/app/testbbdev -c F0 -w${VF_PF_PCI_ADDR} -- -c validation -v ./ldpc_dec_default.data
 
 ## Details for VRB1/2 Configuration (Intel® vRAN Boost)
 
@@ -190,15 +196,17 @@ all the possible processing engine functions.
 
 * On VRB2 the number of supported queues is increased compared to VRB1:
 the total number of QGroups is increased from 16 to 32,
-and the number of AQs per group from 16 to 64 and the number of VF bundles from 16 to 64.
+and the number of AQs per group from 16 to 64 and the number of VF bundles from 16 to 64, while
+the AQ depth is set to 32 by default.
 This also now support a new set of queue for MLD-TS operation type.
 A default reference configuration file to consider is vrb2/vrb2_config_vf.cfg.
 
     ./pf_bb_config VRB2 -v 00112233-4455-6677-8899-aabbccddeeff -c vrb2/vrb2_config_vf.cf
 
 * The FFT engines includes an internal memory used to define the semi-static windowing parameters.
-The content of that table is loaded from binary files vrbx/srs_fft_windows_coefficient.bin
-(up to 1024 points across 16 windows and 7 iDFT sizes).
+The content of that LUT table is loaded from binary files vrbx/srs_fft_windows_coefficient.bin
+(up to 1024 points across 16 windows and 7 iDFT sizes). There is extra description of these
+windows in vrbx/srs_fft_windows_coefficient.txt.
 
 * It is recommended to use vfio-pci to benefit from all Intel vRAN Boost features in pf_bb_config.
 

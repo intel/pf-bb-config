@@ -32,6 +32,8 @@
 #define VRB2_NUM_TMPL           32
 #define VRB2_AQ_REG_NUM         4
 #define VF_OFFSET_QOS 16 /* offset in Memory Space specific to QoS Mon */
+#define VRB2_MON_OFFSET      0x10000
+#define VRB2_MON_NUMS        6
 #define VRB2_TMPL_PRI_0      0x03020100
 #define VRB2_TMPL_PRI_1      0x07060504
 #define VRB2_TMPL_PRI_2      0x0b0a0908
@@ -90,6 +92,7 @@
 #define VRB2_FABRIC_OFFSET    0x10
 
 #define VRB2_FFT_CFG_0        0x2001
+/* Cannot enable global clock gating on A0. */
 #define VRB2_CLK_EN           0x00030A00
 #define VRB2_CLK_DIS          0x03F30A00
 #define VRB2_FFT_ECC          0x60
@@ -106,7 +109,8 @@
 #define VRB2_PG_MASK_4GUL     4
 #define VRB2_PG_MASK_5GUL     8
 #define VRB2_QSTRIDE_MAP      0x1F07F0
-#define VRB2_PROC_TIMEOUT     0x2000 /* 1ms */
+#define VRB2_PROC_TIMEOUT     (0x2000   * 0x100) /* 1ms FIXME B0 x 0x100. */
+#define VRB2_QMGR_TIMEOUT     (0x100000 * 0x100) /* 1ms FIXME B0 x 0x100. */
 #define VRB2_CLUST_TIMEOUT    0x100000 /* 1ms */
 #define VRB2_QMGR_ARAM_TIMEOUT 0x800 /* 2k cycles */
 #define VRB2_QMGR_AXI_TIMEOUT 0x800 /* 2k cycles */

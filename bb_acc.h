@@ -94,10 +94,6 @@
 #define BB_ACC_FIRST_CFG true
 #define BB_ACC_RECFG     false
 
-#define BB_ACC_FFT_1k       (1024)
-#define BB_ACC_FFT_WRAP1 (1024 + 512)
-#define BB_ACC_FFT_WRAP2 (512 - 1)
-
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 
 /**
@@ -298,6 +294,9 @@ vrb2_device_data(void *dev);
 
 extern void
 vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev);
+
+extern void
+vrb_fft_win_check(int16_t *gTDWinCoff, hw_device *accel_pci_dev);
 
 /*
  * Configure FPGA
