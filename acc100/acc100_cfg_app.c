@@ -469,7 +469,7 @@ acc100_write_config(void *dev, void *mapaddr, struct acc100_conf *acc100_conf)
 	payload = (acc100_conf->pf_mode_en) ? 2 : 0;
 	acc100_reg_write(bar0addr, address, payload);
 	if (acc100_conf->pf_mode_en)
-		LOG(INFO, "Configuration in PF mode");
+		LOG(INFO, "Configuration in PF mode (unexpected: VF mode should ideally be used)");
 	else
 		LOG(INFO, "Configuration in VF mode");
 

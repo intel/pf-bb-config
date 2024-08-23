@@ -404,6 +404,12 @@ vrb2_queue_range_check(struct q_topology_t q_conf)
 				q_conf.num_qgroups);
 		return -1;
 	}
+	if (q_conf.num_qgroups * q_conf.num_aqs_per_groups > VRB2_MAX_QGRPS_PER_OP) {
+		printf("ERROR: Number of queues per op out of range %d %d\n",
+				q_conf.num_qgroups * q_conf.num_aqs_per_groups,
+				VRB2_MAX_QGRPS_PER_OP);
+		return -1;
+	}
 	return 0;
 }
 

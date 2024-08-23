@@ -1,6 +1,14 @@
 pf_bb_config Release Note
 =========================
 
+24.07 new features and fixes
+----------------------------
+* VRB2: Enforce maximum 256 total queues configured per operation type.
+* Prevent negative scenario with MMIO marginally outside of PF BAR.
+* Cosmetic change to remind user to use VRB1 instead of deprecated ACC200, and VF mode by default.
+* Cosmetic change to adjust log level when not required to be logged as INFO.
+* Cosmetic change to remove obsolete directory ./acc200/ since ./vrb1 should be used.
+
 24.03 new features and fixes
 ----------------------------
 * Update support for Intel vRAN Boost v2 on GNR-D (Early Access Alpha) including VRB2 fixes.

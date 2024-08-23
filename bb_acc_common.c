@@ -275,7 +275,7 @@ clear_log_file(void *dev)
 	hw_device *accel_dev = (hw_device *)dev;
 	sprintf(log_file, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
 			accel_dev->pci_address);
-	LOG(INFO, "log_file = %s", log_file);
+	LOG(DEBUG, "log_file = %s", log_file);
 	bb_acc_reset_logFile(log_file, BB_ACC_LOG_MAIN);
 }
 
@@ -286,7 +286,7 @@ clear_log_resp_file(void *dev)
 	hw_device *accel_dev = (hw_device *)dev;
 	sprintf(log_file, "%s/pf_bb_cfg_%s_response.log", BB_ACC_DEFAULT_LOG_PATH,
 			accel_dev->pci_address);
-	LOG(INFO, "logRespFile = %s", log_file);
+	LOG(DEBUG, "logRespFile = %s", log_file);
 	bb_acc_reset_logFile(log_file, BB_ACC_LOG_RESP);
 }
 
@@ -421,7 +421,8 @@ int acc_mem_read(void *dev, int rwFlag, int regAddr, int wPayload)
 		}
 	}
 
-	if (regAddr >= device->bar_size) {
+	/* Prevent 4B read outside of PF BAR. */
+	if ((regAddr + 4) > device->bar_size) {
 		LOG_RESP(ERR, "Invalid address range for PF BAR 0x%x", regAddr);
 		LOG_RESP_END();
 		return 0;

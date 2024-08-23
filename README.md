@@ -197,7 +197,8 @@ all the possible processing engine functions.
 * On VRB2 the number of supported queues is increased compared to VRB1:
 the total number of QGroups is increased from 16 to 32,
 and the number of AQs per group from 16 to 64 and the number of VF bundles from 16 to 64, while
-the AQ depth is set to 32 by default.
+the AQ depth is set to 32 by default. The total number of queues per operation type and per VF
+(num_qgroups x num_aqs_per_groups in configuration file) is limited to 256.
 This also now support a new set of queue for MLD-TS operation type.
 A default reference configuration file to consider is vrb2/vrb2_config_vf.cfg.
 

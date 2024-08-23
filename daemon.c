@@ -493,7 +493,7 @@ clear_log_exec(struct cmdDef *cmd, void *ci)
 {
 	struct cmdReq *cmd_req = (struct cmdReq *)ci;
 
-	LOG(INFO, "clear_log command received");
+	LOG(DEBUG, "clear_log command received");
 
 	clear_log_file(cmd_req->priv);
 
@@ -564,7 +564,7 @@ device_data_exec(struct cmdDef *cmd, void *ci)
 {
 	struct cmdReq *cmd_req = (struct cmdReq *)ci;
 
-	LOG(INFO, "device_data command received");
+	LOG(DEBUG, "device_data command received");
 
 	acc_device_data(cmd_req->priv);
 

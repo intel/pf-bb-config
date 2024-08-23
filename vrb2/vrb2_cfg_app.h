@@ -28,6 +28,7 @@
 #define VRB2_NUM_QGRPS_PER_WORD 8
 #define VRB2_NUM_AQS            64
 #define VRB2_MAX_QDEPTH         8
+#define VRB2_MAX_QGRPS_PER_OP   256
 #define MAX_ENQ_BATCH_SIZE        255
 #define VRB2_NUM_TMPL           32
 #define VRB2_AQ_REG_NUM         4

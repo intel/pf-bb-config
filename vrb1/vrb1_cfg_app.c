@@ -372,38 +372,6 @@ vrb1_read_config_file(const char *arg_cfg_filename,
 
 enum {UL_4G = 0, UL_5G, DL_4G, DL_5G, FFT, NUM_ACC};
 
-/* Return the que topology for a Queue Group Index */
-void
-vrb1_qtopFromAcc(struct q_topology_t **qtop, int acc_enum,
-		struct vrb1_conf *vrb1_conf)
-{
-	struct q_topology_t *p_qtop;
-	p_qtop = NULL;
-	switch (acc_enum) {
-	case UL_4G:
-		p_qtop = &(vrb1_conf->q_ul_4g);
-		break;
-	case UL_5G:
-		p_qtop = &(vrb1_conf->q_ul_5g);
-		break;
-	case DL_4G:
-		p_qtop = &(vrb1_conf->q_dl_4g);
-		break;
-	case DL_5G:
-		p_qtop = &(vrb1_conf->q_dl_5g);
-		break;
-	case FFT:
-		p_qtop = &(vrb1_conf->q_fft);
-		break;
-	default:
-		/* NOTREACHED */
-		printf("Unexpected error evaluating vrb1_qtopFromAcc %d",
-				acc_enum);
-		break;
-	}
-	*qtop = p_qtop;
-}
-
 /* Check LUT content for FFT windows. */
 void
 vrb_fft_win_check(int16_t *gTDWinCoff, hw_device *accel_pci_dev)
@@ -962,7 +930,7 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	vrb1_reg_fast_write(d, address, value);
 
 	if (vrb1_conf->pf_mode_en)
-		LOG(INFO, "Configuration in PF mode");
+		LOG(INFO, "Configuration in PF mode (unexpected: VF mode should ideally be used)");
 	else
 		LOG(INFO, "Configuration in VF mode");
 

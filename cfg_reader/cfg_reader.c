@@ -123,7 +123,7 @@ cfg_parse(const char *filename, cfg_handler handler, void *user)
 	int error_line_index;
 	file = fopen(filename, "r");
 	if (!file) {
-		printf("error, cannot load cfg files");
+		printf("error, cannot load cfg files\n");
 		return -1;
 	}
 	error_line_index = cfg_parse_contents(file, handler, user);

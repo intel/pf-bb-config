@@ -1225,7 +1225,7 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	vrb2_reg_write(d, address, value);
 
 	if (vrb2_conf->pf_mode_en)
-		LOG(INFO, "Configuration in PF mode");
+		LOG(INFO, "Configuration in PF mode (unexpected: VF mode should ideally be used)");
 	else
 		LOG(INFO, "Configuration in VF mode");
 

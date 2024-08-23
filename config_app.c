@@ -39,6 +39,8 @@
 #include "bb_acc.h"
 #include "bb_acc_log.h"
 
+#define PF_BB_VERSION "== pf_bb_config Version #VERSION_STRING# =="
+
 static void *
 uio_get_bar0_mapping(const char *pci_addr,
 		unsigned int bar_size, void *dev)
@@ -249,6 +251,8 @@ int set_device(hw_device *device)
 
 	if ((strcasecmp(device->device_name, "acc200") == 0) ||
 			(strcasecmp(device->device_name, "vrb1") == 0)) {
+		if (strcasecmp(device->device_name, "acc200") == 0)
+			printf("Warning: ACC200 was renamed as VRB1, please use VRB1 instead.\n");
 		device->vendor_id = VRB1_VENDOR_ID;
 		device->device_id = VRB1_DEVICE_ID;
 		device->ops.conf = vrb1_configure;
@@ -374,13 +378,13 @@ int set_device(hw_device *device)
 static void
 print_helper(const char *prgname)
 {
-	printf("Usage: %s DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]\n\n"
-			" DEVICE_NAME \t specifies device to configure [FPGA_LTE or FPGA_5GNR or ACC100]\n"
+	printf("%s\nUsage: %s DEVICE_NAME [-h] [-c CFG_FILE] [-p PCI_ID] [-v VFIO_TOKEN]\n\n"
+			" DEVICE_NAME \t specifies device to configure [ACC100|VRB1|VRB2|FPGA_LTE|FPGA_5GNR]\n"
 			" -c CFG_FILE \t specifies configuration file to use\n"
 			" -p PCI_ID \t specifies PCI ID of device to configure ([0000:]51:00.0)\n"
 			" -v VFIO_TOKEN \t VFIO_TOKEN is UUID formatted VFIO VF token required when bound with vfio-pci\n"
 			" -f FFT_LUT_FILE \t specifies the FFT LUT bin file to use\n"
-			" -h \t\t prints this helper\n\n", prgname);
+			" -h \t\t prints this helper\n\n", PF_BB_VERSION, prgname);
 }
 
 static int
@@ -482,7 +486,7 @@ main(int argc, char *argv[])
 		return 0;
 
 	event_init_fd();
-	printf("== pf_bb_config Version #VERSION_STRING# ==\n");
+	printf("%s\n", PF_BB_VERSION);
 
 	/* Set Device Info */
 	ret = set_device(&device);
