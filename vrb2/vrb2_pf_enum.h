@@ -118,6 +118,7 @@ enum {
 	HWPfFeculVersionReg                      = 0x00B4C000,
 	HWPfFeculControlReg                      = 0x00B4C004,
 	HWPfFeculStatusReg                       = 0x00B4C008,
+	HWPfFeculColdCtrlReg                     = 0x00B4C104,
 	HWPfFecdlVersionReg                      = 0x00B57000,
 	HWPfFecdlClusterConfigReg                = 0x00B57004,
 	HWPfFecdlBurstThres                      = 0x00B5700C,

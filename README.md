@@ -101,9 +101,13 @@ NOTE:
     Recommended to use kernel version 5.7 or above or make sure all vfio vf token
     feature are back ported to your kernel version.
 
-    In case of VFIO mode, pf_bb_config runs daemon mode. To reconfigure first
-    kill the existing pf_bb_config process using:
-    pkill pf_bb_config
+    In VFIO mode, pf_bb_config runs as a daemon and must not be terminated.
+    In case the pf_bb_config was terminated for any reason, no bbdev application would be able to
+    use the accelerator VF (vfio-pci would reject this) until the pf_bb_config service is restarted.
+    In practice the pf_bb_config should always be kept running on the platform so that to
+    support the accelerator usage.
+    To reconfigure the device, the DU application should be terminated first, then kill the existing
+    pf_bb_config process using for instance `pkill` before restarting pf_bb_config.
 
 ### Notes on the IOMMU usage
 

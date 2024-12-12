@@ -1,6 +1,14 @@
 pf_bb_config Release Note
 =========================
 
+24.11 new features and fixes
+----------------------------
+* VRB2: Support for the GNR-D B0 ES2 device.
+  This version 24.11 or later is required to support VRB2.
+* VRB2: Update of the default FFT windowing for VRB2 with variety of window sizes.
+* Fix: Minor error handling fix in case number of devices being provided is invalid.
+* Fix: Minor explicit set turbo-decoder fallback settings to avoid unlikely negative scenario.
+
 24.07 new features and fixes
 ----------------------------
 * VRB2: Enforce maximum 256 total queues configured per operation type.

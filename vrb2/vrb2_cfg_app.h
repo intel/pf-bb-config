@@ -92,11 +92,15 @@
 #define VRB2_QMGR_ECC         0x3
 #define VRB2_FABRIC_OFFSET    0x10
 
-#define VRB2_FFT_CFG_0        0x2001
+#define VRB2_FFT_CFG_0        0x2002
+#define VRB2_CLK_EN           0x00030A01
+#define VRB2_CLK_DIS          0x03F30A01
+#define VRB2_FFT_ECC          0x180
+#define VRB2_FFT_CFG_0_A0        0x2001
 /* Cannot enable global clock gating on A0. */
-#define VRB2_CLK_EN           0x00030A00
-#define VRB2_CLK_DIS          0x03F30A00
-#define VRB2_FFT_ECC          0x60
+#define VRB2_CLK_EN_A0           0x00030A00
+#define VRB2_CLK_DIS_A0          0x03F30A00
+#define VRB2_FFT_ECC_A0          0x60
 #define VRB2_FFT_RAM_EN       0x80000000
 #define VRB2_FFT_RAM_DIS      0x0
 #define VRB2_FFT_RAM_SIZE     512

@@ -750,6 +750,11 @@ vrb1_write_config(void *dev, void *mapaddr, struct vrb1_conf *vrb1_conf, const b
 	vrb1_reg_fast_write(d, HWPfQmgrProcessWatchdogCount, 0xFFFFFFFF);
 	vrb1_reg_fast_write(d, HWPfQmgrProcessWatchdogCounterEn, 0xFF);
 
+	/* Force the TD cold register to valid default value. */
+	for (i = 0; i < 5; i++)
+		vrb1_reg_fast_write(d, HWPfFeculColdCtrlReg + i * 0x1000,
+				(1 << 17) + (15 << 4) + 2);
+
 	/* ===== Qmgr Configuration ===== */
 	/* Configuration of the AQueue Depth QMGR_GRP_0_DEPTH_LOG2 for UL */
 	total_qgs = vrb1_conf->q_ul_4g.num_qgroups +

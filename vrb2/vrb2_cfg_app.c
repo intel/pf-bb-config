@@ -30,7 +30,8 @@
 #include "bb_acc.h"
 #include "bb_acc_log.h"
 
-#define HAPS_FACTOR 1
+/* Keep track of device stepping used. */
+bool b0_variant;
 
 /* Info Ring Interrupt Source */
 static vrb2_ir_int_type_info irdata[32] = {
@@ -276,8 +277,10 @@ vrb2_fft_reconfig(uint8_t *d, int template_idx, bool lut_programming, hw_device 
 	bool unsafe_path;
 
 	/* Default FFT configuration. */
-	vrb2_reg_write(d, HWPfFftConfig0 + template_idx * 0x1000, VRB2_FFT_CFG_0);
-	vrb2_reg_write(d, HWPfFftParityMask8 + template_idx * 0x1000, VRB2_FFT_ECC);
+	vrb2_reg_write(d, HWPfFftConfig0 + template_idx * 0x1000,
+			b0_variant ? VRB2_FFT_CFG_0 : VRB2_FFT_CFG_0_A0);
+	vrb2_reg_write(d, HWPfFftParityMask8 + template_idx * 0x1000,
+			b0_variant ? VRB2_FFT_ECC : VRB2_FFT_ECC_A0);
 
 	if (!lut_programming)
 		return 0;
@@ -389,13 +392,27 @@ vrb2_core_hang_recovery(void *dev, uint16_t error_type)
 	}
 }
 
+/* Disable int/ir for a given interrupt source. */
+static void vrb2_disable_int_src(uint8_t *bar0addr, int int_src)
+{
+	uint32_t mask;
+
+	mask = vrb2_reg_read(bar0addr, HWPfHiInfoRingIntWrEnRegPf);
+	mask &= (0xFFFFFFFF - (1ULL << int_src));
+	LOG(INFO, "Disable the Interrupt source %d new mask %x", int_src, mask);
+	vrb2_reg_write(bar0addr, HWPfHiInfoRingIntWrEnRegPf, mask);
+}
+
+/* Manage device error detection and recovery.
+   Returns true when the rest of the IR can be skipped due to reconfiguration.
+*/
 static bool
 vrb2_device_error(void *dev, int int_src)
 {
 	uint16_t eng_type;
 	hw_device *accel_dev = (hw_device *)dev;
 	uint8_t *bar0addr = accel_dev->bar0Addr;
-	bool fatal_error = false;
+	bool fatal_error = false, exit_ir = false;
 
 	/* Flag fatal error based on interrupt source */
 	if (irdata[int_src].fatal)
@@ -414,6 +431,8 @@ vrb2_device_error(void *dev, int int_src)
 	vrb2_reg_write(bar0addr, HWPfQmgrAxiWatchdogCount, VRB2_QMGR_AXI_TIMEOUT);
 	vrb2_reg_write(bar0addr, HWPfQmgrProcessWatchdogCount, VRB2_QMGR_TIMEOUT);
 	vrb2_reg_write(bar0addr, HWPfDmaClusterHangThld, VRB2_CLUST_TIMEOUT);
+	if (b0_variant)
+		vrb2_reg_write(bar0addr, HWPfDmaClusterCtrl, 0x1);
 
 	if (fatal_error && (accel_dev->dev_status[0] != RTE_BBDEV_DEV_FATAL_ERR)) {
 		LOG(ERR, "Fatal error");
@@ -436,11 +455,23 @@ vrb2_device_error(void *dev, int int_src)
 				if (bb_acc_cluster_reset_and_reconfig(accel_dev))
 					LOG(ERR, "Cluster reset and reconfig failed");
 			}
+			/* Exit IR since the device was reconfigured. */
+			exit_ir = true;
 		}
-	} else {
-		LOG(DEBUG, "Non fatal error");
 	}
-	return fatal_error;
+
+	if (fatal_error && !exit_ir) {
+		/* In case of fatal error but not recovered, need to hide this very error
+		source so that to prevent flooding the IR with the same cause. */
+		vrb2_disable_int_src(bar0addr, int_src);
+		if (int_src == VRB2_DMA_CLUSTER_HANG_DETECTED)
+			vrb2_disable_int_src(bar0addr, VRB2_CORE_HANG_DETECTED);
+	}
+
+	if (!fatal_error)
+		LOG(DEBUG, "Non fatal error");
+
+	return exit_ir;
 }
 
 int
@@ -812,12 +843,14 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	int rlim, alen, tmptimestamp, totalQgs, ret;
 	int numQgs, numQqsAcc, numEngines;
 	hw_device *accel_dev = (hw_device *)dev;
+	bool pg_required;
 
 	/* Check we are already out of PG */
 	status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
-	if (status == VRB2_PG_MASK_0) {
+	pg_required = (status == VRB2_PG_MASK_0);
+	if (pg_required) {
 		/* Clock gate sections that will be un-PG */
-		vrb2_reg_write(d, HWPfHiClkGateHystReg, VRB2_CLK_DIS);
+		vrb2_reg_write(d, HWPfHiClkGateHystReg, VRB2_CLK_DIS_A0);
 		/* Un-PG required sections */
 		vrb2_reg_write(d, HWPfHiSectionPowerGatingReq, VRB2_PG_MASK_1);
 		status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
@@ -858,6 +891,26 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 		}
 	}
 
+	/* Check the version of HW is the expected one. */
+	value = vrb2_reg_read(d, HwPfQmgrIrqDebug1);
+	if (value != VRB2_B0_VALUE) {
+		LOG(WARN, "Unexpected older version of HW used (%x %x) - Fall back to ES1 mode.",
+				value, VRB2_B0_VALUE);
+		b0_variant = false;
+	} else {
+		b0_variant = true;
+	}
+
+	if (b0_variant && pg_required) {
+		/* Initialize Qmgr ARAM memory. */
+		vrb2_reg_fast_write(d, HWPfAramControlStatus, VRB2_ARAM_CONTROL + 1);
+		usleep(200);
+		status = vrb2_reg_read(d, HWPfAramControlStatus);
+		if (status & 0x4)
+			LOG(ERR, "ARAM initialization not complete");
+		vrb2_reg_fast_write(d, HWPfAramControlStatus, VRB2_ARAM_CONTROL);
+	}
+
 	/* Adjust PG on the device. */
 	status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 	pg_config = (vrb2_conf->q_fft.num_qgroups == 0 ? 0x1 : 0) |
@@ -875,16 +928,8 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 		}
 	}
 
-	/* Check the version of HW is the expected one. */
-	value = vrb2_reg_read(d, HwPfQmgrIrqDebug1);
-	if (value != VRB2_A0_VALUE) {
-		LOG(ERR, "Unexpected next variation of HW used for that build variant %x %x",
-				value, VRB2_A0_VALUE);
-		return -ENODEV;
-	}
-
 	/* Enable clocks for all sections */
-	vrb2_reg_write(d, HWPfHiClkGateHystReg, VRB2_CLK_EN);
+	vrb2_reg_write(d, HWPfHiClkGateHystReg, b0_variant ? VRB2_CLK_EN : VRB2_CLK_EN_A0);
 
 	/* Explicitly releasing AXI as this may be stopped after PF FLR/BME */
 	vrb2_reg_write(d, HWPfDmaAxiControl, 1);
@@ -947,6 +992,8 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	vrb2_reg_write(d, HWPfQmgrProcessWatchdogCount, VRB2_QMGR_TIMEOUT);
 	vrb2_reg_write(d, HWPfQmgrProcessWatchdogCounterEn, 0xFFFFFFFF);
 	vrb2_reg_write(d, HWPfDmaClusterHangThld, VRB2_CLUST_TIMEOUT);
+	if (b0_variant)
+		vrb2_reg_write(d, HWPfDmaClusterCtrl, 0x1);
 
 	/* Performance tuning. */
 	int coretype[VRB2_NUM_TMPL] = {FFT, FFT, FFT, MLD, UL_5G, MLD, UL_5G, UL_5G,
@@ -983,6 +1030,11 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	vrb2_reg_fast_write(d, HWPfDmaWeightedSwitchingSmall, VRB2_DMA_SWITCH_DEFAULT);
 	vrb2_reg_fast_write(d, HWPfDmaWeightedSwitchingLarge, VRB2_DMA_SWITCH_DEFAULT);
 	vrb2_reg_fast_write(d, HWPfDmaWeightedSwitchingStream, VRB2_DMA_SWITCH_STREAM);
+
+	/* Force the TD cold register to valid default value. */
+	for (i = 0; i < 5; i++)
+		vrb2_reg_fast_write(d, HWPfFeculColdCtrlReg + i * 0x1000,
+				(1 << 17) + (15 << 4) + 2);
 
 	/* ===== Qmgr Configuration ===== */
 	/* Configuration of the AQueue Depth QMGR_GRP_0_DEPTH_LOG2 for UL */
@@ -1080,7 +1132,6 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 		value = 0;
 #endif
 	}
-	LOG(INFO, "Number of 5GUL engines %d", numEngines);
 	/* 4GDL */
 	numQqsAcc += numQgs;
 	numQgs	= vrb2_conf->q_dl_4g.num_qgroups;
@@ -1429,13 +1480,13 @@ void vrb2_cluster_reset(void *dev)
 	}
 	/* Stop the DMA and wait for 100 usec */
 	vrb2_reg_write(bar0addr, HWPfDmaSoftResetReg, 0x2);
-	usleep(100 * HAPS_FACTOR);
+	usleep(100);
 	/* cluster reset */
 	vrb2_reg_write(bar0addr, HWPfHiCoresHardResetReg, 0xFFFFFFFF);
 	vrb2_reg_write(bar0addr, HWPfHi5GHardResetReg, 0xFFFFFFFF);
 	vrb2_reg_write(bar0addr, HWPfHiHardResetReg, 0x3FF);
 	/* wait for 10 usecs */
-	usleep(10 * HAPS_FACTOR);
+	usleep(10);
 	vrb2_reset_info_ring(accel_dev);
 }
 

@@ -504,7 +504,12 @@ main(int argc, char *argv[])
 		return num_devices;
 	}
 
-	select_device(&device, found_devices, num_devices);
+	ret = select_device(&device, found_devices, num_devices);
+	if (ret != 0) {
+		printf("ERR: Need to select device.\n");
+		return -1;
+	}
+
 	sprintf(log_file_main, "%s/pf_bb_cfg_%s.log", BB_ACC_DEFAULT_LOG_PATH,
 			device.pci_address);
 	sprintf(log_file_resp, "%s/pf_bb_cfg_%s_response.log", BB_ACC_DEFAULT_LOG_PATH,
