@@ -1,6 +1,12 @@
 pf_bb_config Release Note
 =========================
 
+25.01 new features and fixes
+----------------------------
+* VRB2: Allow for extra time when updating Power Gating to avoid potential condition when
+  status is not updated fast enough.
+* Minor documentation update.
+
 24.11 new features and fixes
 ----------------------------
 * VRB2: Support for the GNR-D B0 ES2 device.

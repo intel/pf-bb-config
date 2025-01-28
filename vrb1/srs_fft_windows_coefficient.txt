@@ -1,7 +1,17 @@
 Description of provided FFT windows LUT:
 ========================================
 
-Each LUT is made of 16 windows for FFT size from 32 to 2048 in binary format.
+The windowing LUT is made of 16 windows indexes for each of the supported FFT size (from 32 to 2048) in binary format using int16_t (fixed point).
+Note that the stored window lengths are equal to half the FFT size (non-stored entries are assumed to be zero) => hence 65024 B total size.
+In term of layout the content of these windows is concatenated back to back starting from the smaller FFT:
+- first, 16 windows of size 16 x int16_t  for the FFT size 32
+- then 16 windows of size 32 x int16_t  for the FFT size 64
+- etc…
+
+Said otherwise the pointer for the start of the window `Widx` and FFT of index `Fidx` of window size ‘Wsize(Fidx)’ can be computed as:
+        int16_t *offset(Fidx, Widx) = 16 x Sum(Wsize(i), 0 , Fidx-1) + Widx x Wsize(Fidx)
+
+A few examples of LUT are included in this directory and are described below.
 The tabular format below provides for each window index the start position and the width of each window.
 For instance in srs_fft_windows_coefficient_vrb2.bin, for FFT 2048 and window index 1, the window starts at sample -256 and is 388 samples wide.
 

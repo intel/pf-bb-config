@@ -103,8 +103,9 @@ NOTE:
 
     In VFIO mode, pf_bb_config runs as a daemon and must not be terminated.
     In case the pf_bb_config was terminated for any reason, no bbdev application would be able to
-    use the accelerator VF (vfio-pci would reject this) until the pf_bb_config service is restarted.
-    In practice the pf_bb_config should always be kept running on the platform so that to
+    use the accelerator VF (vfio-pci would reject this) until the pf_bb_config service and
+    the bbdev application are restarted.
+    In practice the pf_bb_config must always be kept running on the platform so that to
     support the accelerator usage.
     To reconfigure the device, the DU application should be terminated first, then kill the existing
     pf_bb_config process using for instance `pkill` before restarting pf_bb_config.

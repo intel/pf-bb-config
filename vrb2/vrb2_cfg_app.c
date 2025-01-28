@@ -853,12 +853,14 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 		vrb2_reg_write(d, HWPfHiClkGateHystReg, VRB2_CLK_DIS_A0);
 		/* Un-PG required sections */
 		vrb2_reg_write(d, HWPfHiSectionPowerGatingReq, VRB2_PG_MASK_1);
+		usleep(100);
 		status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 		if (status != VRB2_PG_MASK_1) {
 			LOG(ERR, "Unexpected status %x %x", status, VRB2_PG_MASK_1);
 			return -ENODEV;
 		}
 		vrb2_reg_write(d, HWPfHiSectionPowerGatingReq, VRB2_PG_MASK_3);
+		usleep(100);
 		status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 		if (status != VRB2_PG_MASK_3) {
 			LOG(ERR, "Unexpected status %x %x", status, VRB2_PG_MASK_3);
@@ -921,6 +923,7 @@ vrb2_write_config(void *dev, void *mapaddr, struct vrb2_conf *vrb2_conf, const b
 	if (status != pg_config) {
 		LOG(INFO, "Adjust PG on the device from %x to %x", status, pg_config);
 		vrb2_reg_write(d, HWPfHiSectionPowerGatingReq, pg_config);
+		usleep(100);
 		status = vrb2_reg_read(d, HWPfHiSectionPowerGatingAck);
 		if (status != pg_config) {
 			LOG(ERR, "Unexpected PG update %x while expecting %x", status, pg_config);
