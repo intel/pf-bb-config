@@ -1,6 +1,12 @@
 pf_bb_config Release Note
 =========================
 
+25.11 new features and fixes
+----------------------------
+* No actual code change.
+* Removing configuration files in PF mode to avoid confusion
+  since default usage in in VF mode.
+
 25.01 new features and fixes
 ----------------------------
 * VRB2: Allow for extra time when updating Power Gating to avoid potential condition when
