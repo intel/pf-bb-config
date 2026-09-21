@@ -28,11 +28,11 @@
 #define VRB2_NUM_QGRPS_PER_WORD 8
 #define VRB2_NUM_AQS            64
 #define VRB2_MAX_QDEPTH         8
-#define VRB2_MAX_QGRPS_PER_OP   256
-#define MAX_ENQ_BATCH_SIZE        255
+#define VRB2_MAX_QUEUES_PER_OP  256
+#define MAX_ENQ_BATCH_SIZE      255
 #define VRB2_NUM_TMPL           32
 #define VRB2_AQ_REG_NUM         4
-#define VF_OFFSET_QOS 16 /* offset in Memory Space specific to QoS Mon */
+#define VF_OFFSET_QOS		16 /* offset in Memory Space specific to QoS Mon */
 #define VRB2_MON_OFFSET      0x10000
 #define VRB2_MON_NUMS        6
 #define VRB2_TMPL_PRI_0      0x03020100

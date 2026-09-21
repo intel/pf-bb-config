@@ -217,12 +217,14 @@ vrb2_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 	}
 	/* Reports Window sizes based on the used FFT LUT binary file. */
 	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_SIZE) {
-		window_index = payload >> 16;
-		vrb2_db_write(dev, vf_index, (uint32_t)accel_dev->fft_win_size[window_index]);
+		window_index = payload >> 8;
+		vrb2_db_write(dev, vf_index,
+				(uint32_t)accel_dev->fft_win_size[window_index % BB_ACC_MAX_WIN]);
 	}
 	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_START) {
-		window_index = payload >> 16;
-		vrb2_db_write(dev, vf_index, (uint32_t)accel_dev->fft_win_start[window_index]);
+		window_index = payload >> 8;
+		vrb2_db_write(dev, vf_index,
+				(uint32_t)accel_dev->fft_win_start[window_index % BB_ACC_MAX_WIN]);
 	}
 	if (payload == REQ_DEV_NEW && accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_CONFIGURED) {
 		accel_dev->dev_status[vf_index] = RTE_BBDEV_DEV_ACTIVE;

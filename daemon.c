@@ -161,9 +161,16 @@ unix_channel_srv_init(hw_device *dev)
 	int	rc;
 	struct sockaddr_un serveraddr;
 	char unix_channel_file[UNIX_CHANNEL_FILE_LEN];
+	int len;
 
 	LOG(DEBUG, "cli channel init");
-	sprintf(unix_channel_file, "%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
+
+	len = snprintf(unix_channel_file, UNIX_CHANNEL_FILE_LEN,
+			"%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
+	if ((len < 0) || (len >= UNIX_CHANNEL_FILE_LEN)) {
+		LOG(ERR, "snprintf encoding error %d", len);
+		return -1;
+	}
 
 	/* Check if the .sock file already exists */
 	if (access(unix_channel_file, F_OK) == 0) {
@@ -224,6 +231,11 @@ unix_channel_srv_rx(int fd, struct cmdReq *req)
 	rc = recv(client_fd, req, sizeof(struct cmdReq), 0);
 	if (rc < 0) {
 		LOG(ERR, "cmd request recv() failed");
+		close(client_fd);
+		return -1;
+	}
+	if (rc == 0) {
+		LOG(DEBUG, "client closed connection");
 		close(client_fd);
 		return -1;
 	}
@@ -377,7 +389,7 @@ event_processor(hw_device *dev)
 {
 	char unix_channel_file[UNIX_CHANNEL_FILE_LEN];
 	char sysCmd[1024];
-	int r;
+	int r, len;
 
 	while (!is_sig_term_rcv) {
 
@@ -397,10 +409,15 @@ event_processor(hw_device *dev)
 		LOG(INFO, "Exit event processor\n");
 		/* Remove the socket file */
 		memset(sysCmd, 0, sizeof(sysCmd));
-		sprintf(unix_channel_file, "%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
-		sprintf(sysCmd, "rm -fr %s", unix_channel_file);
-		r = system(sysCmd);
-		LOG(DEBUG, "system cmd returns = %d\n", r);
+		len = snprintf(unix_channel_file, UNIX_CHANNEL_FILE_LEN,
+				"%s.%s.sock", UNIX_CHANNEL_PATH, dev->pci_address);
+		if ((len > 0) && (len < UNIX_CHANNEL_FILE_LEN)) {
+			sprintf(sysCmd, "rm -fr %s", unix_channel_file);
+			r = system(sysCmd);
+			LOG(DEBUG, "system cmd returns = %d\n", r);
+		} else {
+			LOG(ERR, "snprintf error when removing unix channel file %d\n", len);
+		}
 		/* Close the log file */
 		bb_acc_logExit();
 	}

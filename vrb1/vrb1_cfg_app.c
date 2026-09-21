@@ -169,16 +169,16 @@ vrb1_pfvf(void *dev, unsigned int vf_index, unsigned int payload)
 	}
 	/* Reports Window sizes based on the used FFT LUT binary file. */
 	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_SIZE) {
-		window_index = payload >> 16;
+		window_index = payload >> 8;
 		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf
 				+ vf_index * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET,
-				(uint32_t)accel_dev->fft_win_size[window_index]);
+				(uint32_t)accel_dev->fft_win_size[window_index % BB_ACC_MAX_WIN]);
 	}
 	if ((payload & REQ_DEV_MASK) == REQ_DEV_FFT_WIN_START) {
-		window_index = payload >> 16;
+		window_index = payload >> 8;
 		vrb1_reg_fast_write(bar0addr, HWPfHiPfToVfDbellVf
 				+ vf_index * BB_ACC_PF_TO_VF_DBELL_REG_OFFSET,
-				(uint32_t)accel_dev->fft_win_start[window_index]);
+				(uint32_t)accel_dev->fft_win_start[window_index % BB_ACC_MAX_WIN]);
 	}
 	if (payload == REQ_DEV_NEW && accel_dev->dev_status[vf_index] == RTE_BBDEV_DEV_CONFIGURED) {
 		accel_dev->dev_status[vf_index] = RTE_BBDEV_DEV_ACTIVE;
@@ -416,6 +416,8 @@ vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev)
 	uint16_t ver_md;
 	char md_prefix[8];
 	char *cmd;
+	char *endptr;
+	long ver_md_long;
 	FILE *fp;
 
 	uint16_t size_cmd = snprintf(NULL, 0, "%s", lut_filename) + 8;
@@ -432,7 +434,23 @@ vrb_fft_lut_md5sum(const char *lut_filename, hw_device *accel_pci_dev)
 		pclose(fp);
 		return;
 	}
-	ver_md = (int)strtol(md_prefix, NULL, 16);
+
+	/* Validate hex string conversion */
+	errno = 0;
+	ver_md_long = strtol(md_prefix, &endptr, 16);
+
+	if (errno == ERANGE || ver_md_long > UINT16_MAX || ver_md_long < 0) {
+		LOG(ERR, "FFT LUT MD5 prefix overflow or out of range: %s", md_prefix);
+		pclose(fp);
+		return;
+	}
+	if (endptr == md_prefix || (*endptr != '\0' && *endptr != '\n')) {
+		LOG(ERR, "FFT LUT MD5 prefix invalid format: %s", md_prefix);
+		pclose(fp);
+		return;
+	}
+
+	ver_md = (uint16_t)ver_md_long;
 	LOG(INFO, "  FFT Version Number %X", ver_md);
 	pclose(fp);
 	accel_pci_dev->fft_version_md5sum = ver_md;

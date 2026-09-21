@@ -35,11 +35,31 @@
 #include <errno.h>
 #include <libgen.h>
 #include <sys/eventfd.h>
+#include <regex.h>
 
 #include "bb_acc.h"
 #include "bb_acc_log.h"
 
 #define PF_BB_VERSION "== pf_bb_config Version #VERSION_STRING# =="
+
+static int
+validate_pci_address(const char *addr)
+{
+	regex_t regex;
+	int ret;
+	/* PCI format: DDDD:BB:DD.F or BB:DD.F */
+	const char *pattern = "^([0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\\.[0-7]$";
+	ret = regcomp(&regex, pattern, REG_EXTENDED);
+	if (ret)
+		return -1;
+	ret = regexec(&regex, addr, 0, NULL, 0);
+	regfree(&regex);
+	if (ret == REG_NOMATCH) {
+		LOG(ERR, "Invalid PCI address format: %s", addr);
+		return -EINVAL;
+	}
+	return 0;
+}
 
 static void *
 uio_get_bar0_mapping(const char *pci_addr,
@@ -507,6 +527,11 @@ main(int argc, char *argv[])
 	ret = select_device(&device, found_devices, num_devices);
 	if (ret != 0) {
 		printf("ERR: Need to select device.\n");
+		return -1;
+	}
+
+	if (validate_pci_address(device.pci_address) < 0) {
+		LOG(ERR, "Invalid PCI address format: %s", device.pci_address);
 		return -1;
 	}
 

@@ -17,7 +17,7 @@
 #******************************************************************************/
 
 CC=gcc
-CFLAGS=-Wall -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -z relro -z now -z noexecstack -s -O1
+CFLAGS=-Wall -D_FORTIFY_SOURCE=2 -fstack-protector-strong -Wformat -Wformat-security -fPIE -z relro -z now -z noexecstack -s -O1
 ODIR=build
 DEPS=
 

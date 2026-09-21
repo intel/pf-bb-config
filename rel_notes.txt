@@ -1,6 +1,20 @@
 pf_bb_config Release Note
 =========================
 
+26.07 new features and fixes
+----------------------------
+* Vulnerability: Update to PF2VF comms to expose all FFT windows settings.
+  So far only the first window is actually used for config enumeration.
+  No system impact but addresses potential vulnerability. Affects VRB1 and VRB2.
+* Vulnerability: Improve strtol() validation
+  Adds proper error checking for strtol() conversions.
+* Vulnerability: unbounded printf
+  Avoids potential Stack Corruption via PCI Address String
+* Vulnerability: daemon recv() connection handling
+  Adds check for recv() returning 0 (connection closed) to prevent processing uninitialized
+  data and CPU spin when client disconnects prematurely.
+* Typo: Renaming VRB2_MAX_QGRPS_PER_OP to VRB2_MAX_QUEUES_PER_OP to be more accurate.
+
 25.11 new features and fixes
 ----------------------------
 * No actual code change.

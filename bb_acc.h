@@ -120,7 +120,7 @@ enum bb_acc_device_request {
 	REQ_DEV_LUT_VER = 3,       /**< Request the device LUT version number. */
 	REQ_DEV_FFT_WIN_SIZE = 4,  /**< Request window width. */
 	REQ_DEV_FFT_WIN_START = 5,  /**< Request window start point. */
-	REQ_DEV_MASK = 0xFFFF
+	REQ_DEV_MASK = 0xFF
 };
 
 /* Function pointers for bb dev operations */

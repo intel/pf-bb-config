@@ -313,6 +313,8 @@ static int vfio_get_device_groupid(const char *pci_addr)
 	char device_iommu_group[PATH_MAX];
 	char group_path[PATH_MAX];
 	char *group_name;
+	char *endptr;
+	long groupid_long;
 	int groupid = -1;
 	int len;
 
@@ -326,12 +328,32 @@ static int vfio_get_device_groupid(const char *pci_addr)
 	group_path[len] = 0;
 
 	group_name = basename(group_path);
-	groupid = strtol(group_name, NULL, 10);
-	if (groupid == 0) {
-		LOG(ERR, "VFIO: Faild to read %s", group_path);
+
+	/* Validate group name is not empty */
+	if (*group_name == '\0') {
+		LOG(ERR, "VFIO: Empty group name for %s", pci_addr);
 		return -1;
 	}
 
+	errno = 0;
+	groupid_long = strtol(group_name, &endptr, 10);
+
+	/* Validate conversion */
+	if (errno == ERANGE || groupid_long > INT_MAX || groupid_long < 0) {
+		LOG(ERR, "VFIO: Group ID overflow or out of range for %s: %s",
+				pci_addr, group_name);
+		return -1;
+	}
+	if (endptr == group_name || *endptr != '\0') {
+		LOG(ERR, "VFIO: Invalid group ID format for %s: %s", pci_addr, group_name);
+		return -1;
+	}
+	if (groupid_long == 0) {
+		LOG(ERR, "VFIO: Invalid group ID 0 for %s", pci_addr);
+		return -1;
+	}
+
+	groupid = (int)groupid_long;
 	return groupid;
 }
 
